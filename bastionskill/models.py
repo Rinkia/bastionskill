@@ -34,6 +34,27 @@ class Skill:
     description: str = ""  # SKILL.md frontmatter description (the declared intent)
     files: tuple[SourceFile, ...] = ()
     source: str = ""  # dir or url it came from
+    opaque: tuple[str, ...] = ()  # bundled files we cannot statically read
+
+    def content_hash(self) -> str:
+        """Stable sha256 over every bundled file's path + bytes.
+
+        Drives ledger drift / rug-pull detection: same source, changed hash =
+        the skill was modified since the last scan.
+        """
+        import hashlib
+
+        h = hashlib.sha256()
+        for f in sorted(self.files, key=lambda x: x.path):
+            h.update(f.path.encode("utf-8"))
+            h.update(b"\0")
+            h.update(f.text.encode("utf-8", "replace"))
+            h.update(b"\0")
+        for name in sorted(self.opaque):
+            h.update(b"opaque:")
+            h.update(name.encode("utf-8"))
+            h.update(b"\0")
+        return h.hexdigest()
 
 
 @dataclass(frozen=True)

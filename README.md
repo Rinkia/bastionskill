@@ -23,14 +23,28 @@ Zero required dependencies. Python 3.10+.
 ## Use
 
 ```bash
-bastionskill scan ./some-skill            # code-layer scan
-bastionskill scan ./some-skill --prompt   # + hidden-unicode / prompt-layer
-bastionskill scan ./some-skill --json     # machine-readable
-bastionskill harden ./some-skill -o skill-policy.yaml   # agentbastion policy
+bastionskill scan ./some-skill              # scan a local skill dir
+bastionskill scan ~/.claude/skills          # batch-scan every skill under a dir
+bastionskill scan owner/repo                # pre-flight a REMOTE skill (shallow clone, no exec)
+bastionskill scan https://github.com/o/r    #   ... by full URL
+bastionskill scan ./skill --prompt          # + hidden-unicode / prompt-layer
+bastionskill scan ./skill --json            # machine-readable
+bastionskill scan ./skill --report out.json # signable manifest (per-file hashes, verdict)
+bastionskill scan ./skill --record          # append result to the local ledger
+bastionskill scan ./skill --fail-on critical  # CI gate threshold (default: high)
+bastionskill harden ./skill -o skill-policy.yaml   # agentbastion/bastiongate policy
+bastionskill ledger                         # list previously scanned skills + dates
 ```
 
-Exit code is non-zero when a critical/high finding is present — drop it in CI as a
-pre-install gate.
+`--fail-on` sets the exit-code threshold (`critical|high|medium|low|none`, default
+`high`) — drop it in CI as a pre-install gate. See [docs/github-action.md](docs/github-action.md).
+
+**Remote pre-flight** shallow-clones the repo to a temp dir, scans statically, and
+deletes it. The skill's own code is never executed.
+
+**Ledger & rug-pull.** `--record` writes each scan to `~/.bastionskill/ledger.jsonl`
+(source, content hash, date, verdict). Re-scan the same source after it changes and
+you get a `! DRIFT` warning — the poisoned-update vector.
 
 ## What it catches (code-layer)
 
@@ -42,6 +56,8 @@ pre-install gate.
 | obfuscation | `base64 -d | sh`, `eval(atob(...))` |
 | dynamic exec | `exec()`, `eval()`, `getattr(m,n)()` (Python AST tier) |
 | destructive | `rm -rf`, `Remove-Item -Recurse` |
+| lateral-tamper | writes to `CLAUDE.md`, MCP config, or other skills |
+| **opaque-binary** | bundles a compiled/loadable file it can't inspect (incl. renamed binaries, magic-byte sniffed) |
 | **shadow** | code exercises a capability SKILL.md never declared |
 
 Python files get a real `ast` pass (stdlib) on top of regex, so dynamic exec /

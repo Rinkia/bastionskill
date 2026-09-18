@@ -6,7 +6,8 @@ The shadow is the product's whole point: capabilities the bundled code exercises
 
 from __future__ import annotations
 
-from .checks import scan_python_ast, scan_regex
+from .checks import scan_opaque, scan_python_ast, scan_regex
+from .ignore import IgnoreRules
 from .models import Finding, ScanReport, Skill
 
 # Words in a SKILL.md description that count as declaring a capability.
@@ -68,14 +69,24 @@ def shadow_findings(skill: Skill, code_findings: list[Finding]) -> list[Finding]
     return out
 
 
-def scan(skill: Skill) -> ScanReport:
+def scan(skill: Skill, ignore: IgnoreRules | None = None) -> ScanReport:
     code: list[Finding] = []
+    scanned_files = 0
     for f in skill.files:
+        if ignore and ignore.skip_file(f.path):
+            continue
+        scanned_files += 1
         code.extend(scan_regex(f))
         if f.lang == "python":
             code.extend(scan_python_ast(f))
+    opaque = [o for o in skill.opaque if not (ignore and ignore.skip_file(o))]
+    code.extend(scan_opaque(tuple(opaque)))
     code = _dedupe(code)
     findings = code + shadow_findings(skill, code)
+    if ignore:
+        findings = [f for f in findings if not ignore.suppressed(f)]
     return ScanReport(
-        skill=skill.name, file_count=len(skill.files), findings=tuple(findings)
+        skill=skill.name,
+        file_count=scanned_files + len(opaque),
+        findings=tuple(findings),
     )

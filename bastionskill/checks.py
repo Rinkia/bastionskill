@@ -44,6 +44,9 @@ _REGEX: tuple[Detector, ...] = (
     _d("hook-install", "high", "persistence",
        r"settings\.json|\.claude[\\/](settings|hooks)|[\\/]hooks[\\/]",
        "writes to agent settings/hooks (persistence surface)"),
+    _d("lateral-tamper", "high", "persistence",
+       r"CLAUDE\.md|mcp\.json|claude_desktop_config|[\\/]skills[\\/]|\.mcp\.json",
+       "writes to agent config / other skills (lateral tampering)"),
     _d("persistence", "high", "persistence",
        r"\bcrontab\b|LaunchAgents|LaunchDaemons|\bHKCU\b|\bHKLM\b|systemctl\s+enable",
        "installs OS-level persistence (cron/launchd/registry/systemd)"),
@@ -82,21 +85,60 @@ _REGEX: tuple[Detector, ...] = (
 )
 
 
+_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+
+
+def _strip_comments(text: str, lang: str) -> str:
+    """Blank out comment lines so regex doesn't match code described in prose.
+
+    Line count is preserved (line numbers stay valid). Conservative: only removes
+    FULL-LINE comments (and JS block comments) — trailing comments are left so a
+    `#` inside a string is never mistaken for a comment and a real finding hidden.
+    ponytail: trailing-comment false positives remain; upgrade to a real tokenizer
+    only if they prove noisy on real skills.
+    """
+    if lang == "javascript":
+        text = _BLOCK_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+        prefix = "//"
+    elif lang in ("python", "bash", "other"):
+        prefix = "#"
+    else:
+        return text
+    out = []
+    for line in text.split("\n"):
+        out.append("" if line.lstrip().startswith(prefix) else line)
+    return "\n".join(out)
+
+
 def scan_regex(f: SourceFile) -> list[Finding]:
-    # ponytail: matches inside comments/strings are flagged too (over-flag, never
-    # miss). Upgrade path: per-language comment stripping before matching, if the
-    # false-positive rate on real skills proves noisy.
     out: list[Finding] = []
-    lines = f.text.splitlines()
-    for i, line in enumerate(lines, start=1):
+    original = f.text.splitlines()
+    scanned = _strip_comments(f.text, f.lang).splitlines()
+    for i, line in enumerate(scanned, start=1):
         for det in _REGEX:
             if det.pattern.search(line):
+                evidence = original[i - 1].strip() if i - 1 < len(original) else line.strip()
                 out.append(Finding(
                     check=det.check, severity=det.severity, file=f.path,
-                    message=det.message, evidence=line.strip()[:200],
+                    message=det.message, evidence=evidence[:200],
                     line=i, capability=det.capability,
                 ))
     return out
+
+
+def scan_opaque(opaque_paths: tuple[str, ...]) -> list[Finding]:
+    """One HIGH finding per bundled file we cannot read as source.
+
+    A compiled or binary artifact is an execution surface a static reader is blind
+    to — treat "can't inspect" as "don't trust", not as clean.
+    """
+    return [
+        Finding(
+            check="opaque-binary", severity="high", file=path, capability="exec",
+            message="opaque/compiled bundled file — cannot inspect, do not trust",
+        )
+        for path in opaque_paths
+    ]
 
 
 # --- python AST tier --------------------------------------------------------
@@ -137,8 +179,10 @@ class _Visitor(ast.NodeVisitor):
 def scan_python_ast(f: SourceFile) -> list[Finding]:
     try:
         tree = ast.parse(f.text)
-    except SyntaxError:
-        return []  # unparseable python: regex tier still covered it
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        # unparseable or hostile-to-parse python: regex tier still covered it;
+        # never let a crafted file crash the scan.
+        return []
     v = _Visitor(f.path)
     v.visit(tree)
     return v.findings

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
-from .models import ScanReport
+from .models import ScanReport, Skill
+
+MANIFEST_SCHEMA = "bastionskill.manifest/1"
 
 _MARK = {"critical": "CRIT", "high": "HIGH", "medium": "MED ", "low": "LOW "}
 
@@ -40,6 +43,36 @@ def to_text(rep: ScanReport) -> str:
         if f.evidence:
             lines.append(f"        > {f.evidence}")
     return "\n".join(lines)
+
+
+def to_manifest(rep: ScanReport, skill: Skill, tool_version: str) -> dict:
+    """A stable, signable record of one scan.
+
+    Deterministic except `generated_at`; carries per-file sha256 and the skill
+    content hash so a signature (future) or a Supabase sink can pin exactly what
+    was scanned. This is the schema a certification/registry layer would build on.
+    """
+    import hashlib
+
+    files = [
+        {"path": f.path, "lang": f.lang,
+         "sha256": hashlib.sha256(f.text.encode("utf-8", "replace")).hexdigest()}
+        for f in sorted(skill.files, key=lambda x: x.path)
+    ]
+    return {
+        "schema": MANIFEST_SCHEMA,
+        "tool_version": tool_version,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "skill": rep.skill,
+        "source": skill.source,
+        "content_hash": skill.content_hash(),
+        "verdict": "allow" if rep.ok else "deny",
+        "risk": rep.risk,
+        "counts": rep.counts(),
+        "files": files,
+        "opaque": list(skill.opaque),
+        "findings": json.loads(to_json(rep))["findings"],
+    }
 
 
 def to_json(rep: ScanReport) -> str:
