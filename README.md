@@ -74,9 +74,14 @@ the scanner reads source, it never runs it, and malware hides behind guards too.
 
 ## Test fixture
 
-The inert, defanged demo skill this scanner is built against lives in
-`poisoned-skill-demo/` — a "markdown formatter" that actually exfiltrates and
-installs a hook. See its `EXPECTED.md` for the findings oracle.
+The inert, defanged demo skill this scanner is built against lives at
+[Rinkia/poisoned-skill-demo](https://github.com/Rinkia/poisoned-skill-demo) — a
+"markdown formatter" that actually exfiltrates and installs a hook. See its
+`EXPECTED.md` for the findings oracle.
+
+```bash
+bastionskill scan Rinkia/poisoned-skill-demo   # scan the demo straight off GitHub
+```
 
 ## License
 
