@@ -12,34 +12,49 @@ MANIFEST_SCHEMA = "bastionskill.manifest/1"
 _MARK = {"critical": "CRIT", "high": "HIGH", "medium": "MED ", "low": "LOW "}
 
 
+def _capability_summary(findings) -> str:
+    """One line: which capabilities the code exercises and how many hits each."""
+    counts: dict[str, int] = {}
+    for f in findings:
+        if f.kind == "capability" and f.capability:
+            counts[f.capability] = counts.get(f.capability, 0) + 1
+    if not counts:
+        return ""
+    order = ["network", "secrets", "persistence", "destructive", "exec"]
+    parts = [f"{cap}×{counts[cap]}" for cap in order if cap in counts]
+    return ", ".join(parts)
+
+
 def to_text(rep: ScanReport) -> str:
     lines: list[str] = []
-    c = rep.counts()
-    head = (f"skill: {rep.skill}  files: {rep.file_count}  risk: {rep.risk.upper()}"
-            f"  (crit {c['critical']} / high {c['high']} /"
-            f" med {c['medium']} / low {c['low']})")
+    head = f"skill: {rep.skill}  files: {rep.file_count}  VERDICT: {rep.verdict.upper()}"
     lines.append(head)
     lines.append("-" * len(head))
 
     findings = rep.sorted_findings()
-    if not findings:
-        lines.append("clean: no code-layer risks found.")
+    reasons = [f for f in findings if f.kind in ("malice", "shadow")]
+
+    if rep.verdict == "allow":
+        cap = _capability_summary(findings)
+        lines.append("allow: no poisoning signals." +
+                     (f"  capabilities: {cap}" if cap else " no notable capabilities."))
         return "\n".join(lines)
 
-    # Shadow first, called out — it is the headline.
-    shadows = [f for f in findings if f.check == "shadow"]
-    if shadows:
-        lines.append("SHADOW (declared intent != actual behavior):")
-        for f in shadows:
-            lines.append(f"  ! {f.message}")
-        lines.append("")
+    # Why it isn't allowed — the malice + shadow signals, up top.
+    lines.append(f"why {rep.verdict}:")
+    for f in reasons:
+        loc = f" ({f.file}:{f.line})" if f.line else (f" ({f.file})" if f.file else "")
+        lines.append(f"  ! [{f.kind}] {f.check}: {f.message}{loc}")
 
+    cap = _capability_summary(findings)
+    if cap:
+        lines.append(f"\ncapabilities (informational): {cap}")
+
+    # Full detail, kind-tagged.
+    lines.append("\nfindings:")
     for f in findings:
-        if f.check == "shadow":
-            continue
         loc = f.file + (f":{f.line}" if f.line else "")
-        lines.append(f"[{_MARK[f.severity]}] {f.check:<14} {loc}")
-        lines.append(f"        {f.message}")
+        lines.append(f"  [{f.kind[:3]}|{_MARK[f.severity]}] {f.check:<14} {loc}")
         if f.evidence:
             lines.append(f"        > {f.evidence}")
     return "\n".join(lines)
@@ -66,7 +81,7 @@ def to_manifest(rep: ScanReport, skill: Skill, tool_version: str) -> dict:
         "skill": rep.skill,
         "source": skill.source,
         "content_hash": skill.content_hash(),
-        "verdict": "allow" if rep.ok else "deny",
+        "verdict": rep.verdict,
         "risk": rep.risk,
         "counts": rep.counts(),
         "files": files,
@@ -79,12 +94,14 @@ def to_json(rep: ScanReport) -> str:
     obj = {
         "skill": rep.skill,
         "file_count": rep.file_count,
+        "verdict": rep.verdict,
         "risk": rep.risk,
         "ok": rep.ok,
         "counts": rep.counts(),
         "findings": [
             {
                 "check": f.check,
+                "kind": f.kind,
                 "severity": f.severity,
                 "capability": f.capability,
                 "file": f.file,

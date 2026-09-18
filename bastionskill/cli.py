@@ -22,10 +22,11 @@ from pathlib import Path
 from . import __version__, harden, ledger as ledger_mod, prompt, remote, report
 from .ignore import load as load_ignore
 from .loader import discover_skills, load_skill
-from .models import SEVERITIES, ScanReport, Skill
+from .models import VERDICTS, ScanReport, Skill
 from .scanner import scan
 
-_RANK = {s: i for i, s in enumerate(SEVERITIES)}  # 0 = worst
+_VRANK = {v: i for i, v in enumerate(VERDICTS)}  # block=0 (worst) .. allow=2
+_FAIL_CHOICES = ("block", "review", "none")
 
 
 def _make_output_unicode_safe() -> None:
@@ -44,10 +45,14 @@ def _resolve_ignore(skill_dir: Path, args):
 
 
 def _fails(rep: ScanReport, threshold: str) -> bool:
+    """Exit non-zero when the verdict is at `threshold` or worse.
+
+    threshold 'block' fails only on block; 'review' fails on review+block; 'none'
+    never fails.
+    """
     if threshold == "none":
         return False
-    worst = min((_RANK[f.severity] for f in rep.findings), default=len(SEVERITIES))
-    return worst <= _RANK[threshold]
+    return _VRANK[rep.verdict] <= _VRANK[threshold]
 
 
 def _scan_one(skill_dir: Path, args) -> tuple[ScanReport, Skill]:
@@ -77,8 +82,8 @@ def main(argv=None) -> int:
     ps.add_argument("--json", action="store_true", help="emit JSON")
     ps.add_argument("--report", help="write a signable scan manifest to this path")
     ps.add_argument("--record", action="store_true", help="append result to the local ledger")
-    ps.add_argument("--fail-on", default="high", choices=[*SEVERITIES, "none"],
-                    help="exit non-zero at this severity or worse (default: high)")
+    ps.add_argument("--fail-on", default="review", choices=list(_FAIL_CHOICES),
+                    help="exit non-zero at this verdict or worse: block|review|none (default: review)")
     ps.add_argument("--ignore", help="path to a .bastionskillignore (default: in the skill dir)")
     ps.add_argument("--no-ignore", action="store_true", help="ignore any .bastionskillignore")
 

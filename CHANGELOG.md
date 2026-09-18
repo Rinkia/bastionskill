@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+Verdict-model rework — capability is not malice (from the 642-skill dogfood).
+
+- **Three verdicts** (`allow` / `review` / `block`) replace severity-driven deny.
+  Every finding has a `kind`: `capability` (informational), `malice`, or `shadow`.
+- `block` = staged-exec (decode piped to a shell); `review` = shadow, obfuscation,
+  opaque binary, or exfil-combo (secrets + egress together); `allow` = clean, or
+  capability the skill legitimately has (even a lot of it).
+- New **exfil-combo** correlation: reads secrets AND has network egress.
+- `--fail-on` is now `block|review|none` (default `review`).
+- Report leads with the verdict + the malice/shadow reasons, then a one-line
+  capability summary — no more wall of CRITICAL/HIGH on legit power-tools.
+- Dogfood impact on 642 real skills: was 12 deny → now 0 false blocks, 9 review,
+  633 allow. The poisoned demo still blocks.
+- Manifest, ledger, and `harden` all key off the verdict now.
+
 ## 0.1.0 (unreleased)
 
 First cut. Code-layer only; prompt-layer delegated to bastionsupply.

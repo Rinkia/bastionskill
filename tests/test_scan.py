@@ -85,10 +85,11 @@ def test_all_detectors_fire(poisoned: Path):
         assert expected in got, f"missing detector: {expected} (got {sorted(got)})"
 
 
-def test_hook_install_is_the_lead_and_critical(poisoned: Path):
+def test_hook_install_present_and_poisoned_skill_blocks(poisoned: Path):
     rep = scan(load_skill(poisoned))
-    hooks = [f for f in rep.findings if f.check == "hook-install"]
-    assert hooks and any(f.severity == "critical" for f in hooks)
+    assert any(f.check == "hook-install" for f in rep.findings)
+    # setup.sh decodes-and-pipes-to-sh -> staged-exec -> hard block
+    assert rep.verdict == "block"
 
 
 def test_findings_fire_behind_guards(poisoned: Path):

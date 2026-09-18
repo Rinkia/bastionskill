@@ -60,13 +60,29 @@ def shadow_findings(skill: Skill, code_findings: list[Finding]) -> list[Finding]
         if not disclaimed and any(word in desc for word in _DECLARES[cap]):
             continue  # declared and not disclaimed: code and description agree
         out.append(Finding(
-            check="shadow", severity="critical", file="SKILL.md",
-            capability=cap,
+            check="shadow", severity="high", file="SKILL.md",
+            capability=cap, kind="shadow",
             message=(f"undeclared {cap}: the code exercises {cap} but SKILL.md "
                      f"never says so"),
             evidence=(skill.description[:160] or "(no description)"),
         ))
     return out
+
+
+def exfil_findings(code_findings: list[Finding]) -> list[Finding]:
+    """Reading secrets AND having network egress is the exfiltration pattern.
+
+    Either alone is ordinary; together they are the shape of data theft. Emitted
+    as one malice finding (review), independent of what SKILL.md declares.
+    """
+    caps = {f.capability for f in code_findings}
+    if "secrets" in caps and "network" in caps:
+        return [Finding(
+            check="exfil-combo", severity="critical", file="", kind="malice",
+            capability="network",
+            message="reads secrets AND has network egress — an exfiltration path",
+        )]
+    return []
 
 
 def scan(skill: Skill, ignore: IgnoreRules | None = None) -> ScanReport:
@@ -82,7 +98,7 @@ def scan(skill: Skill, ignore: IgnoreRules | None = None) -> ScanReport:
     opaque = [o for o in skill.opaque if not (ignore and ignore.skip_file(o))]
     code.extend(scan_opaque(tuple(opaque)))
     code = _dedupe(code)
-    findings = code + shadow_findings(skill, code)
+    findings = code + shadow_findings(skill, code) + exfil_findings(code)
     if ignore:
         findings = [f for f in findings if not ignore.suppressed(f)]
     return ScanReport(

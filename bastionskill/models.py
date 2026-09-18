@@ -16,6 +16,15 @@ _RANK = {s: i for i, s in enumerate(SEVERITIES)}  # 0 = worst
 # against what SKILL.md declares.
 CAPABILITIES = ("network", "secrets", "persistence", "destructive", "exec")
 
+# A finding's kind drives the verdict (v0.2). `capability` describes what the code
+# can do — informational, never blocks on its own. `malice` and `shadow` are the
+# poisoning signals that do.
+KINDS = ("capability", "malice", "shadow")
+
+# Verdict tiers, worst first.
+VERDICTS = ("block", "review", "allow")
+_VRANK = {v: i for i, v in enumerate(VERDICTS)}
+
 
 @dataclass(frozen=True)
 class SourceFile:
@@ -62,16 +71,19 @@ class Finding:
     """One risk detected by a check."""
 
     check: str  # check id, e.g. "hook-install"
-    severity: str  # one of SEVERITIES
+    severity: str  # one of SEVERITIES (display ordering; verdict uses `kind`)
     file: str  # relative path, or "" for skill-level
     message: str
     evidence: str = ""
     line: int = 0
     capability: str = ""  # one of CAPABILITIES, or "" (drives shadow detection)
+    kind: str = "capability"  # one of KINDS — drives the verdict
 
     def __post_init__(self) -> None:
         if self.severity not in _RANK:
             raise ValueError(f"bad severity {self.severity!r}")
+        if self.kind not in KINDS:
+            raise ValueError(f"bad kind {self.kind!r}")
 
 
 @dataclass(frozen=True)
@@ -84,15 +96,30 @@ class ScanReport:
 
     @property
     def risk(self) -> str:
-        """Worst severity present, or 'clean'."""
+        """Worst severity present, or 'clean' (display hint; verdict is authoritative)."""
         if not self.findings:
             return "clean"
         return min((f.severity for f in self.findings), key=lambda s: _RANK[s])
 
     @property
+    def verdict(self) -> str:
+        """block | review | allow — the authoritative call (v0.2).
+
+        block: a staged-exec (decode piped to an interpreter) — no honest use.
+        review: any other malice signal or a shadow (undeclared capability) — a
+                human should look, but it is not auto-malware.
+        allow: clean, or capability the code legitimately has.
+        """
+        if any(f.check == "staged-exec" for f in self.findings):
+            return "block"
+        if any(f.kind in ("malice", "shadow") for f in self.findings):
+            return "review"
+        return "allow"
+
+    @property
     def ok(self) -> bool:
-        """True when nothing critical or high was found."""
-        return self.risk in ("clean", "medium", "low")
+        """True when the skill is cleared to install (verdict allow)."""
+        return self.verdict == "allow"
 
     def counts(self) -> dict[str, int]:
         out = {s: 0 for s in SEVERITIES}

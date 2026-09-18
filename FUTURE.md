@@ -4,15 +4,16 @@ Deferred out of the before-GH cut. Roughly priority order.
 
 ## From the 2026-09-18 dogfood (642 real skills)
 
-- **Verdict model rework (top v0.2).** Dogfood: 630/642 clean, 12 deny — but the 12
-  are legit high-capability tools (gstack crit134/high535, browse, make-pdf), not
-  malice. Raw capability is too blunt a deny driver. Plan: capability findings →
-  INFO by default; **deny only on the malice signals** — shadow, obfuscation,
-  opaque-binary, staged-exec, and combinations — not on raw network/exec presence.
-- **Shadow is description-dependent.** It correctly isolates undeclared powers on
-  simple skills (hackernews-frontpage → network) but "FPs" on power-tools whose
-  terse SKILL.md just omits its real powers. Consider: only shadow when the
-  description makes a positive scope claim, or weight shadow by description richness.
+- (done in v0.2) **Verdict model rework.** Capability findings are now
+  informational; verdict is allow/review/block driven by malice + shadow +
+  exfil-combo, not raw capability. Dogfood: 12 deny → 0 false blocks / 9 review /
+  633 allow. Demo still blocks.
+- **Shadow is still description-dependent (open).** It "FPs" to REVIEW on
+  power-tools whose terse SKILL.md omits real powers (gstack, browse). Now a
+  review not a block, so less painful — but consider: only shadow when the
+  description makes a positive scope claim ("offline", "no network"), or weight
+  shadow by description richness, or a per-skill allowlist/baseline of accepted
+  capabilities.
 - (done) dist/build binary gap — opaque detection now sweeps dist/build while still
   skipping their source noise; node_modules/.git stay fully skipped.
 

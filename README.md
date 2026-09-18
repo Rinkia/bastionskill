@@ -31,13 +31,25 @@ bastionskill scan ./skill --prompt          # + hidden-unicode / prompt-layer
 bastionskill scan ./skill --json            # machine-readable
 bastionskill scan ./skill --report out.json # signable manifest (per-file hashes, verdict)
 bastionskill scan ./skill --record          # append result to the local ledger
-bastionskill scan ./skill --fail-on critical  # CI gate threshold (default: high)
+bastionskill scan ./skill --fail-on block   # CI gate: block|review|none (default: review)
 bastionskill harden ./skill -o skill-policy.yaml   # agentbastion/bastiongate policy
 bastionskill ledger                         # list previously scanned skills + dates
 ```
 
-`--fail-on` sets the exit-code threshold (`critical|high|medium|low|none`, default
-`high`) — drop it in CI as a pre-install gate. See [docs/github-action.md](docs/github-action.md).
+## Verdict, not a wall of severities
+
+The scan ends in one of three verdicts, because capability is not malice — a legit
+power-tool exercises network, secrets, and hooks too:
+
+- **allow** — clean, or capability the skill legitimately has (even a lot of it).
+- **review** — a poisoning *signal* a human should eyeball: a **shadow** (the code
+  exercises a capability `SKILL.md` never declared), obfuscation, an opaque binary,
+  or the exfil pattern (reads secrets *and* has egress).
+- **block** — hard malice with no honest use: a staged-exec (decode piped to a shell).
+
+Capability findings are reported as informational context, not as blockers.
+`--fail-on` (`block|review|none`, default `review`) is the CI gate. See
+[docs/github-action.md](docs/github-action.md).
 
 **Remote pre-flight** shallow-clones the repo to a temp dir, scans statically, and
 deletes it. The skill's own code is never executed.

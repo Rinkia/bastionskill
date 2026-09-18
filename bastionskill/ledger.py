@@ -55,7 +55,7 @@ def record(rep: ScanReport, skill: Skill, path: Path | None = None) -> dict:
         "source": skill.source,
         "skill": rep.skill,
         "content_hash": skill.content_hash(),
-        "verdict": "allow" if rep.ok else "deny",
+        "verdict": rep.verdict,
         "risk": rep.risk,
         "counts": rep.counts(),
     }

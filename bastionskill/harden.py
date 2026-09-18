@@ -9,12 +9,11 @@ from __future__ import annotations
 
 from .models import ScanReport
 
-_BLOCK = {"critical", "high"}
-
 
 def to_policy_yaml(report: ScanReport) -> str:
-    tripped = [f for f in report.findings if f.severity in _BLOCK]
-    verdict = "deny" if tripped else "allow"
+    # v0.2: deny on the verdict (malice/shadow), not on raw capability severity.
+    tripped = [f for f in report.findings if f.kind in ("malice", "shadow")]
+    verdict = "allow" if report.verdict == "allow" else "deny"
     reasons = sorted({f.check for f in tripped})
     caps = sorted({f.capability for f in tripped if f.capability})
 

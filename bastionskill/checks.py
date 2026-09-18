@@ -28,58 +28,62 @@ class Detector:
     capability: str
     pattern: re.Pattern
     message: str
+    kind: str = "capability"
 
 
-def _d(check, severity, capability, regex, message, flags=0) -> Detector:
-    return Detector(check, severity, capability, re.compile(regex, flags), message)
+def _d(check, severity, capability, regex, message, flags=0, kind="capability") -> Detector:
+    return Detector(check, severity, capability, re.compile(regex, flags), message, kind)
 
 
 # --- regex tier -------------------------------------------------------------
-# Ordered worst-first only for readability; scanner sorts output itself.
+# v0.2: most detectors report a CAPABILITY (what the code can do) — informational,
+# it never blocks on its own. Only obfuscation / staged-exec are MALICE (no honest
+# use). The verdict is driven by kind + the shadow/exfil correlation in scanner.py,
+# not by raw capability count — a legit power-tool shouldn't read as malware.
 _REGEX: tuple[Detector, ...] = (
-    # persistence / hook install — the lead finding
-    _d("hook-install", "critical", "persistence",
+    # persistence / hook install — capability (blocks only when undeclared -> shadow)
+    _d("hook-install", "medium", "persistence",
        r"\b(Post|Pre|User(Prompt|)|Stop|Notification)ToolUse\b|\bPostToolUse\b|\bPreToolUse\b",
        "installs an agent hook (runs after this skill, persistence)"),
-    _d("hook-install", "high", "persistence",
+    _d("hook-install", "low", "persistence",
        r"settings\.json|\.claude[\\/](settings|hooks)|[\\/]hooks[\\/]",
        "writes to agent settings/hooks (persistence surface)"),
-    _d("lateral-tamper", "high", "persistence",
+    _d("lateral-tamper", "medium", "persistence",
        r"CLAUDE\.md|mcp\.json|claude_desktop_config|[\\/]skills[\\/]|\.mcp\.json",
        "writes to agent config / other skills (lateral tampering)"),
-    _d("persistence", "high", "persistence",
+    _d("persistence", "medium", "persistence",
        r"\bcrontab\b|LaunchAgents|LaunchDaemons|\bHKCU\b|\bHKLM\b|systemctl\s+enable",
        "installs OS-level persistence (cron/launchd/registry/systemd)"),
-    # network egress
-    _d("network-egress", "critical", "network",
+    # network egress — capability
+    _d("network-egress", "medium", "network",
        r"\bsocket\.socket\b|\.connect\(\s*\(|\.sendall\(|\.sendto\(",
        "raw socket network egress"),
-    _d("network-egress", "high", "network",
+    _d("network-egress", "low", "network",
        r"\brequests\.(get|post|put|patch|delete)\b|\burllib\.request\b|\bhttp\.client\b|\bfetch\(|\baxios\b",
        "HTTP client call (possible exfiltration)"),
-    _d("network-egress", "high", "network",
+    _d("network-egress", "low", "network",
        r"\bcurl\b|\bwget\b|Invoke-WebRequest|Invoke-RestMethod",
        "shells out to a network client (curl/wget/Invoke-WebRequest)"),
-    # secret read
-    _d("secret-read", "critical", "secrets",
+    # secret read — capability
+    _d("secret-read", "medium", "secrets",
        r"\.aws[\\/]credentials|id_rsa|id_ed25519|\.ssh[\\/]|\.git-credentials|\.npmrc|KUBECONFIG|keychain",
        "reads credential/secret material"),
-    _d("secret-read", "high", "secrets",
+    _d("secret-read", "low", "secrets",
        r"(^|[\s\"'/=@])\.env\b",
        "reads a .env secrets file"),
-    # obfuscation
+    # obfuscation — MALICE (staged-exec is the only auto-block: decode piped to a shell)
+    _d("staged-exec", "critical", "exec",
+       r"base64\s+(-d|--decode)[^\n|]*\|\s*(sh|bash|python|node)\b",
+       "decodes then pipes to an interpreter (staged exec)", kind="malice"),
     _d("obfuscation", "high", "exec",
        r"base64\s+(-d|--decode)|b64decode|atob\(|FromBase64String",
-       "base64-decoded payload (obfuscation)"),
-    _d("obfuscation", "critical", "exec",
-       r"base64\s+(-d|--decode)[^\n|]*\|\s*(sh|bash|python|node)\b",
-       "decodes then pipes to an interpreter (staged exec)"),
-    # dynamic exec (regex catch; AST tier confirms for python)
-    _d("dynamic-exec", "critical", "exec",
+       "base64-decoded payload (obfuscation)", kind="malice"),
+    # dynamic exec — capability (many legit tools shell out / exec)
+    _d("dynamic-exec", "medium", "exec",
        r"\beval\(|\bexec\(|\bsystem\(|subprocess\.(Popen|call|run|check_output)|os\.popen",
        "dynamic / shell execution"),
-    # destructive
-    _d("destructive", "high", "destructive",
+    # destructive — capability
+    _d("destructive", "medium", "destructive",
        r"\brm\s+-rf\b|Remove-Item\b[^\n]*-Recurse|\bmkfs\b|\bdd\s+if=|\bshred\b",
        "destructive filesystem/disk command"),
 )
@@ -121,7 +125,7 @@ def scan_regex(f: SourceFile) -> list[Finding]:
                 out.append(Finding(
                     check=det.check, severity=det.severity, file=f.path,
                     message=det.message, evidence=evidence[:200],
-                    line=i, capability=det.capability,
+                    line=i, capability=det.capability, kind=det.kind,
                 ))
     return out
 
@@ -136,6 +140,7 @@ def scan_opaque(opaque_paths: tuple[str, ...]) -> list[Finding]:
         Finding(
             check="opaque-binary", severity="high", file=path, capability="exec",
             message="opaque/compiled bundled file — cannot inspect, do not trust",
+            kind="malice",
         )
         for path in opaque_paths
     ]
