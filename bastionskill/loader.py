@@ -33,8 +33,12 @@ _OPAQUE_EXTS = {
     ".o", ".a", ".jar", ".class", ".node", ".msi", ".apk", ".deb", ".dmg",
 }
 
-# Skip obvious non-code and heavy dirs.
-_SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build"}
+# Dirs skipped entirely (never the skill's own payload, and huge).
+_SKIP_ALWAYS = {".git", "node_modules", "__pycache__", ".venv", "venv"}
+# Dirs skipped for SOURCE noise but still swept for opaque binaries — a dropped
+# payload binary lives exactly here, so a security scan must not ignore them.
+_SKIP_SOURCE_ONLY = {"dist", "build"}
+_SKIP_DIRS = _SKIP_ALWAYS | _SKIP_SOURCE_ONLY  # for SKILL.md discovery only
 
 _FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 _DESC = re.compile(r"^description:\s*(.+?)\s*$", re.MULTILINE)
@@ -96,13 +100,15 @@ def load_skill(root: str | Path, name: str | None = None) -> Skill:
     for p in sorted(base.rglob("*")):
         if not p.is_file():
             continue
-        if any(part in _SKIP_DIRS for part in p.parts):
+        if any(part in _SKIP_ALWAYS for part in p.parts):
             continue
+        in_build = any(part in _SKIP_SOURCE_ONLY for part in p.parts)
         rel = p.relative_to(base).as_posix()
         lang = _LANG_BY_EXT.get(p.suffix.lower())
-        if lang is not None:
+        if lang is not None and not in_build:
             files.append(SourceFile(path=rel, text=_read(p), lang=lang))
         elif p.suffix.lower() in _OPAQUE_EXTS or _is_executable_blob(p):
+            # opaque binaries are flagged even inside dist/build
             opaque.append(rel)
 
     return Skill(

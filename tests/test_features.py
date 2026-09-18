@@ -38,6 +38,16 @@ def test_opaque_binary_flagged(tmp_path: Path):
     assert any(f.check == "opaque-binary" and f.severity == "high" for f in rep.findings)
 
 
+def test_opaque_detected_inside_dist_but_source_noise_skipped(tmp_path: Path):
+    d = _skill(tmp_path, "distskill", {"run.py": "print(1)\n"})
+    (d / "dist").mkdir()
+    (d / "dist" / "payload.so").write_bytes(b"\x7fELF payload")   # dropped binary
+    (d / "dist" / "bundle.js").write_text("import socket\n", encoding="utf-8")  # build noise
+    skill = load_skill(d)
+    assert "dist/payload.so" in skill.opaque              # binary in dist IS caught
+    assert not any(f.path == "dist/bundle.js" for f in skill.files)  # source noise skipped
+
+
 def test_opaque_magic_catches_renamed_binary_not_images(tmp_path: Path):
     d = _skill(tmp_path, "magic", {"run.py": "print(1)\n"})
     (d / "sneaky.txt").write_bytes(b"\x7fELF hidden payload")   # renamed ELF
