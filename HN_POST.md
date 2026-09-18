@@ -29,12 +29,15 @@ hides behind those too. It flags:
 
 Python files get a real `ast` pass on top of regex; bash/JS are regex.
 
-I dogfooded it on my own ~/.claude/skills — 642 skills. 630 clean, 12 flagged,
-and it caught a bundled .exe I'd forgotten was there. The honest catch: the 12
-were legit high-capability dev tools, not malware. Raw capability is too blunt a
-verdict on its own — the *shadow* (undeclared capability) is the real
-discriminator, and tightening the verdict model to deny only on malice signals
-is the next release. I'd rather ship that finding than hide it.
+I dogfooded it on my own ~/.claude/skills — 642 skills — and it reshaped the tool.
+A first pass flagged 12 on raw capability, but they were legit high-capability dev
+tools, not malware. So capability isn't the verdict. The current model separates
+what the code *can do* (informational) from poisoning *signals*: a skill either
+`allow`s, needs `review` (a shadow = capability the code uses that SKILL.md never
+declared, or obfuscation, or an opaque binary, or reads-secrets-plus-egress), or
+hard-`block`s (a staged-exec: decode piped to a shell — no honest use). Same 642
+skills now: 0 false blocks, 9 review, 633 allow. The poisoned demo still blocks.
+It also caught bundled .exes I'd forgotten were there.
 
 Try it on the intentionally-malicious (inert, defanged) demo skill straight off
 GitHub:
@@ -77,12 +80,14 @@ it reads source instead of running it.
 
 The differentiating check is the **shadow**: capabilities the code exercises that
 SKILL.md never declared. A skill that says "formats markdown" but opens a socket
-gets called out directly.
+gets called out directly. Verdict is allow / review / block — capability alone is
+informational (a legit power-tool has plenty), only poisoning signals (shadow,
+obfuscation, opaque binary, secrets+egress, staged-exec) drive review/block.
 
-I ran it against my own 642 installed skills: 630 clean, 12 flagged (incl. a
-bundled .exe). Honest note — the 12 were legit power-tools, so v0.1's
-capability-based verdict is noisy on high-capability skills; the shadow signal is
-the real tell and the verdict model tightens next release.
+I ran it against my own 642 installed skills: 0 false blocks, 9 review, 633 allow
+(and it caught bundled .exes). An early capability-based pass flagged 12 legit
+power-tools — which is exactly why the verdict model separates capability from
+malice.
 
 Try it on the inert malicious demo:
 
@@ -129,9 +134,9 @@ obfuscation, destructive commands, and opaque/renamed binaries via magic bytes.
 never declared. "Formats markdown" + opens a socket = one finding that says what's
 wrong.
 
-4/ Dogfooded on my own 642 installed skills: 630 clean, 12 flagged, caught a
-bundled .exe. Honest bit: the 12 were legit power-tools — capability isn't
-malice, the shadow is the tell, verdict model tightens next release.
+4/ Dogfooded on my own 642 installed skills: 0 false blocks, 9 review, 633 allow,
+caught bundled .exes. Verdict separates capability (informational) from poisoning
+signals — capability isn't malice, the shadow is the tell.
 
 5/ Try it on the inert, defanged malicious demo, zero setup:
    pip install bastionskill
