@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- **SARIF output**: `bastionskill scan --sarif` emits SARIF 2.1.0 so bundled-code
+  findings upload to GitHub code scanning. Each result carries a physicalLocation
+  (file + line), with `kind`/`capability` as result properties; severity maps to
+  level (critical/high→error, medium→warning, low→note).
+
 ## 0.2.0 (unreleased)
 
 Verdict-model rework — capability is not malice (from the 642-skill dogfood).

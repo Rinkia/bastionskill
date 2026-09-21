@@ -80,6 +80,7 @@ def main(argv=None) -> int:
     ps.add_argument("--prompt", action="store_true",
                     help="also run the prompt-layer check (hidden unicode)")
     ps.add_argument("--json", action="store_true", help="emit JSON")
+    ps.add_argument("--sarif", action="store_true", help="emit SARIF 2.1.0 (GitHub code scanning)")
     ps.add_argument("--report", help="write a signable scan manifest to this path")
     ps.add_argument("--record", action="store_true", help="append result to the local ledger")
     ps.add_argument("--fail-on", default="review", choices=list(_FAIL_CHOICES),
@@ -136,7 +137,10 @@ def _cmd_scan(args) -> int:
                 print(f"! DRIFT: {skill.source} changed since last scan "
                       f"({prior.get('ts', '?')}, was {prior.get('verdict', '?')})",
                       file=sys.stderr)
-            if args.json:
+            if args.sarif:
+                from . import sarif
+                print(sarif.to_sarif(rep))
+            elif args.json:
                 print(report.to_json(rep))
             else:
                 if i:

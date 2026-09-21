@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bastionskill"
-version = "0.2.0"
+version = "0.3.0"
 description = "Skill-poisoning scanner: detect malicious bundled code (network egress, secret theft, hook-install persistence, destructive commands) in agent skills before you install them — the code-layer that a plain grepper and a prompt-scanner miss."
 readme = "README.md"
 requires-python = ">=3.10"
