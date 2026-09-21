@@ -51,6 +51,16 @@ Capability findings are reported as informational context, not as blockers.
 `--fail-on` (`block|review|none`, default `review`) is the CI gate. See
 [docs/github-action.md](docs/github-action.md).
 
+`--sarif` emits SARIF 2.1.0 (file + line per finding) for GitHub code scanning:
+
+```yaml
+- run: bastionskill scan ./skill --sarif > bastionskill.sarif
+  continue-on-error: true
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: bastionskill.sarif
+```
+
 **Remote pre-flight** shallow-clones the repo to a temp dir, scans statically, and
 deletes it. The skill's own code is never executed.
 
