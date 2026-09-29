@@ -17,16 +17,22 @@ Deferred out of the before-GH cut. Roughly priority order.
 - (done) dist/build binary gap — opaque detection now sweeps dist/build while still
   skipping their source noise; node_modules/.git stay fully skipped.
 
-## Post-launch, near term (v0.2)
+## Post-launch, near term
 
-- **SARIF output** (`--sarif`). Findings render inline in GitHub PR code-scanning.
-  Another report writer; big adoption multiplier for the CI story.
+- (done in v0.3.0) **SARIF output** (`--sarif`). Findings render inline in GitHub PR
+  code-scanning.
+- **A reader for the skill verdict (open).** Since v0.4.0 `harden` emits a
+  `policy_version: 2` file with the verdict under the reserved `skill:` block (no tool
+  policy; agentbastion/bastiongate load it and ignore the block). Nothing reads it yet:
+  a skill installer/loader (or a CI step) that refuses `verdict: deny` would make it
+  enforcement. Until then `scan --fail-on` is the gate.
 - **`lock` / `verify` commands.** The ledger already detects drift on `--record`;
   promote it to explicit pin/verify (a committed `skill.lock` of file hashes) so a
   repo can gate updates in CI, not just locally.
 - **Broaden detectors:**
   - git-exfil (`git remote add` + `git push` to an external host)
-  - install-time `curl … | sh` fetch-then-exec in setup scripts
+  - install-time `curl … | sh` fetch-then-exec in setup scripts (`staged-exec` only
+    covers `base64 -d | sh`; plain curl/wget is a low `network-egress` capability)
   - egress to raw IP literals and non-allowlisted domains
   - clipboard read / env dump / keylog patterns
   - (done in the cut: writes to CLAUDE.md / MCP config / other skills = `lateral-tamper`)
@@ -56,12 +62,13 @@ Deferred out of the before-GH cut. Roughly priority order.
 
 ## Suite-fit & publish parity
 
-- **Real bastionsupply prompt-layer wiring.** `prompt.py` is a stub + hidden-unicode
-  only; wire the actual bastionsupply injection detectors via the `[prompt]` extra.
-- **Publish parity with the other bastion repos:** `.gitattributes` forcing LF on
-  `.sh`, OIDC PyPI publish on GitHub Release, optional GHCR image (like MonoHunter).
-- **Add to bastiondefense.dev** (tools.ts + docs + pricing) — *after* GitHub + PyPI
-  are live, with working repo/install links.
+- **Real bastionsupply prompt-layer wiring (open).** `prompt.py` still checks only
+  hidden unicode and whether bastionsupply is importable; it never calls its
+  detectors. Wire them via the `[prompt]` extra.
+- (done) **Publish parity:** `.gitattributes` forces LF on `.sh`; OIDC PyPI publish on
+  GitHub Release. Still optional: a GHCR image (like MonoHunter), only if someone asks.
+- (done 2026-09-18) **On bastiondefense.dev** (tools.ts + docs + pricing), versions
+  refreshed from PyPI.
 
 ## Detector coverage gaps (known ceilings)
 
