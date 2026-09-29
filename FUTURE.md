@@ -25,7 +25,7 @@ Deferred out of the before-GH cut. Roughly priority order.
   --policy` enforces `harden`'s verdicts, pinned by content digest. Still open: a
   runtime loader check (the agent loading a skill that changed after install; today
   `scan --record` + ledger drift catches it after the fact).
-- **`lock` / `verify` commands.** The ledger already detects drift on `--record`;
+- (done in v0.7.0) **`lock` / `verify` commands.** The ledger already detects drift on `--record`;
   promote it to explicit pin/verify (a committed `skill.lock` of file hashes) so a
   repo can gate updates in CI, not just locally.
 - **Broaden detectors:**

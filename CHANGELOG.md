@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0
+
+- **`lock` / `verify`: gate skill updates in CI.** `bastionskill lock DIR -o skill.lock`
+  scans every skill under DIR and, if all pass `--fail-on` (default `review`), pins
+  each one by path to its `tree_digest` (every file it ships, SKILL.md and data
+  included) plus its verdict. `bastionskill verify DIR --lock skill.lock` exits 1 when a
+  skill was added, removed or changed since, so updates can't land unreviewed. Same
+  shape as bastionsupply's tool lock. A lock written inside a locked skill is refused
+  (it would change that skill's digest).
+- Dogfood: 664 real skills locked in ~50 s (scan included), verified in ~14 s.
+
 ## 0.6.0
 
 - **New detector `remote-exec`** (high, malice → verdict **review**): code fetched at

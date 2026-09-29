@@ -11,6 +11,8 @@
     bastionskill harden ./skill -o skill-policy.yaml   # verdict(s), pinned by digest
     bastionskill install owner/repo --to ~/.claude/skills   # install only if it passes
     bastionskill install ./skill --to DIR --policy skill-policy.yaml   # enforce verdicts
+    bastionskill lock ./skills -o skill.lock      # pin a folder of skills (commit the lock)
+    bastionskill verify ./skills --lock skill.lock   # CI: fail if a skill changed
     bastionskill ledger                           # list previously scanned skills + dates
 """
 
@@ -23,7 +25,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, harden, install as install_mod, ledger as ledger_mod, prompt, remote, report
-from . import verdicts
+from . import lockfile, verdicts
 from .ignore import load as load_ignore
 from .loader import discover_skills, load_skill, tree_digest
 from .models import VERDICTS, ScanReport, Skill
@@ -106,6 +108,16 @@ def main(argv=None) -> int:
                     help="without a policy verdict, refuse at this scan verdict or worse (default: review)")
     pi.add_argument("--force", action="store_true", help="replace a skill already installed under that name")
 
+    pk = sub.add_parser("lock", help="pin every skill under a dir to its digest (scans first)")
+    pk.add_argument("target", help="skill dir or a dir of skills")
+    pk.add_argument("-o", "--out", default="skill.lock", help="lock file to write (default: skill.lock)")
+    pk.add_argument("--fail-on", default="review", choices=list(_FAIL_CHOICES),
+                    help="refuse to lock if a skill scans at this verdict or worse (default: review)")
+
+    pv = sub.add_parser("verify", help="fail if any skill was added, removed or changed since lock")
+    pv.add_argument("target", help="skill dir or a dir of skills")
+    pv.add_argument("--lock", default="skill.lock", help="lock file to check against (default: skill.lock)")
+
     pl = sub.add_parser("ledger", help="list previously scanned skills and dates")
     pl.add_argument("--json", action="store_true", help="emit JSON")
 
@@ -116,6 +128,10 @@ def main(argv=None) -> int:
         return _cmd_harden(args)
     if args.cmd == "ledger":
         return _cmd_ledger(args)
+    if args.cmd == "lock":
+        return _cmd_lock(args)
+    if args.cmd == "verify":
+        return _cmd_verify(args)
     if args.cmd == "install":
         return _cmd_install(args)
     return 2
@@ -276,6 +292,53 @@ def _cmd_install(args) -> int:
                 shutil.rmtree(s, ignore_errors=True)
         if checkout:
             checkout.__exit__(None, None, None)
+
+
+def _lock_keys(base: Path) -> dict[str, Path]:
+    """Lock key -> skill dir. Keys are paths under `base` (stable across runs; a lone
+    skill at `base` uses its dir name). Local dirs only: lock what you commit."""
+    if not base.is_dir():
+        _die(f"no such directory: {base}")
+    return {(d.relative_to(base).as_posix() if d != base else d.resolve().name): d
+            for d in discover_skills(base)}
+
+
+def _cmd_lock(args) -> int:
+    entries, refused = {}, []
+    out = Path(args.out).resolve()
+    for key, d in _lock_keys(Path(args.target)).items():
+        if d.resolve() in out.parents:
+            _die(f"{args.out} is inside skill {key!r}; it would change that skill's digest. "
+                 "Write the lock outside the skill (e.g. the repo root)")
+        rep = scan(load_skill(d, name=key))  # no ignore rules: the lock pins what ships
+        if _fails(rep, args.fail_on):
+            refused.append(f"{key} ({rep.verdict})")
+        entries[key] = (tree_digest(d), rep.verdict)
+    if refused:
+        print(f"bastionskill: not locking, {len(refused)} skill(s) fail at --fail-on {args.fail_on}: "
+              + ", ".join(refused), file=sys.stderr)
+        return 1
+    lockfile.write_lock(lockfile.make_lock(entries), args.out)
+    print(f"locked {len(entries)} skill(s) -> {args.out}")
+    return 0
+
+
+def _cmd_verify(args) -> int:
+    try:
+        lock = lockfile.load_lock(args.lock)
+    except (OSError, ValueError) as e:
+        _die(f"cannot read lock: {e}")
+    current = {key: tree_digest(d) for key, d in _lock_keys(Path(args.target)).items()}
+    drift = lockfile.verify(current, lock)
+    if drift.clean:
+        print(f"verify: {len(current)} skill(s) match {args.lock}")
+        return 0
+    print(f"verify: DRIFT against {args.lock}")
+    for label, keys in (("changed", drift.changed), ("added", drift.added), ("removed", drift.removed)):
+        for k in keys:
+            print(f"  {label:<8} {k}")
+    print("review the change, then `bastionskill lock` again to accept it", file=sys.stderr)
+    return 1
 
 
 def _cmd_ledger(args) -> int:
