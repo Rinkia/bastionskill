@@ -30,8 +30,7 @@ Deferred out of the before-GH cut. Roughly priority order.
   repo can gate updates in CI, not just locally.
 - **Broaden detectors:**
   - git-exfil (`git remote add` + `git push` to an external host)
-  - install-time `curl … | sh` fetch-then-exec in setup scripts (`staged-exec` only
-    covers `base64 -d | sh`; plain curl/wget is a low `network-egress` capability)
+  - (done in v0.6.0) install-time `curl … | sh` fetch-then-exec: `remote-exec`
   - egress to raw IP literals and non-allowlisted domains
   - clipboard read / env dump / keylog patterns
   - (done in the cut: writes to CLAUDE.md / MCP config / other skills = `lateral-tamper`)

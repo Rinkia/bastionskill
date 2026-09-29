@@ -97,6 +97,7 @@ you get a `! DRIFT` warning — the poisoned-update vector.
 | network egress | `socket.connect`, `requests.post`, `curl`/`wget`, `fetch()` |
 | secret read | `~/.aws/credentials`, `id_rsa`, `.env` |
 | obfuscation | `base64 -d | sh`, `eval(atob(...))` |
+| remote-exec | `curl … | sh`, `bash <(curl …)`, `iwr … | iex`, `exec(requests.get(…).text)`: code fetched at run time was never scanned (review, not block: honest installers do this too) |
 | dynamic exec | `exec()`, `eval()`, `getattr(m,n)()` (Python AST tier) |
 | destructive | `rm -rf`, `Remove-Item -Recurse` |
 | lateral-tamper | writes to `CLAUDE.md`, MCP config, or other skills |
