@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0
+
+- **`harden` emits a `policy_version: 2` skill verdict.** The verdict moves under the
+  `skill:` block the shared v2 format reserves for bastionskill, and the top-level
+  `default: allow` is gone. The old file was labelled an agentbastion/bastiongate
+  policy, but neither reads skill verdicts, and its `default: allow` loaded there as
+  an allow-every-tool policy: a file that looked like enforcement and did nothing.
+  Now both load it as valid v2 with no tool policy and ignore the `skill:` block. The
+  docs say plainly that the verdict is for skill loaders and CI (`scan --fail-on` is
+  the enforcement today).
+
 ## 0.3.0
 
 - **SARIF output**: `bastionskill scan --sarif` emits SARIF 2.1.0 so bundled-code
