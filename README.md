@@ -32,9 +32,30 @@ bastionskill scan ./skill --json            # machine-readable
 bastionskill scan ./skill --report out.json # signable manifest (per-file hashes, verdict)
 bastionskill scan ./skill --record          # append result to the local ledger
 bastionskill scan ./skill --fail-on block   # CI gate: block|review|none (default: review)
-bastionskill harden ./skill -o skill-policy.yaml   # v2 skill verdict for loaders/CI
+bastionskill harden ./skill -o skill-policy.yaml   # v2 verdict(s), pinned by digest
+bastionskill install owner/repo --to ~/.claude/skills   # install only if it passes
+bastionskill install ./skill --to ~/.claude/skills --policy skill-policy.yaml
 bastionskill ledger                         # list previously scanned skills + dates
 ```
+
+## install: the gate that enforces the verdict
+
+`install` copies a skill into a skills dir (`~/.claude/skills`, or a project's
+`.claude/skills`) only if it passes. It stages the copy first and scans and hashes
+**that copy**, so the verdict covers exactly the bytes installed.
+
+- **No policy:** the scan decides at `--fail-on` (default `review`).
+- **`--policy` (a `harden` file):** a `deny` matching the skill's name or digest
+  refuses it. An `allow` counts only through its `digest`, the sha256 of every file
+  installed: a reviewer can approve a skill the scanner rates `review` by flipping its
+  entry to `allow`, and that approval covers those exact bytes only. If the skill
+  changes (a rug-pull), the allow no longer matches and the scan decides again.
+- A folder of skills installs all-or-nothing. The skill's own `.bastionskillignore` is
+  not honored here (the author can't hide files from the check that admits them),
+  symlinks are refused, and an existing install needs `--force`.
+
+`harden` on a folder writes one verdict file for every skill in it; names that collide
+(nested copies) are keyed by their path.
 
 ## Verdict, not a wall of severities
 
@@ -92,11 +113,10 @@ the scanner reads source, it never runs it, and malware hides behind guards too.
 
 - Prompt-layer → [bastionsupply](https://github.com/Rinkia/bastionsupply) (dependency, optional extra)
 - Runtime gating → bastiongate
-- `harden` emits a `policy_version: 2` skill verdict (allow/deny + the checks and
-  capabilities that tripped it) under the `skill:` block, for whatever installs or
-  loads skills. agentbastion and bastiongate don't run skills: they load the file and
-  ignore the block, and it sets no tool policy. The enforcement today is `scan
-  --fail-on` in CI or before install.
+- `harden` emits a `policy_version: 2` skill verdict (allow/deny, the checks and
+  capabilities that tripped it, and a content `digest`) under the `skill:` block;
+  `bastionskill install --policy` enforces it. agentbastion and bastiongate don't run
+  skills: they load the file, ignore the block, and get no tool policy from it.
 
 ## Test fixture
 

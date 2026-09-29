@@ -7,6 +7,7 @@ read — a common poisoning bypass). No network, no code execution — pure read
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -118,6 +119,32 @@ def load_skill(root: str | Path, name: str | None = None) -> Skill:
         source=str(root),
         opaque=tuple(opaque),
     )
+
+
+def install_files(root: str | Path) -> list[Path]:
+    """Every file `install` copies: the whole skill tree except VCS/cache/vendored dirs
+    (the same `_SKIP_ALWAYS` set the scanner never reads, so nothing unscanned ships)."""
+    root = Path(root)
+    return sorted(
+        p for p in root.rglob("*")
+        if p.is_file() and not any(part in _SKIP_ALWAYS for part in p.relative_to(root).parts)
+    )
+
+
+def tree_digest(root: str | Path) -> str:
+    """sha256 over the path + bytes of every file `install` would copy.
+
+    Unlike `Skill.content_hash` (scanned source only), this covers SKILL.md, data
+    files and binaries: a verdict pinned to it applies to exactly the bytes vetted.
+    """
+    root = Path(root)
+    h = hashlib.sha256()
+    for p in install_files(root):
+        h.update(p.relative_to(root).as_posix().encode("utf-8"))
+        h.update(b"\0")
+        h.update(p.read_bytes())
+        h.update(b"\0")
+    return "sha256:" + h.hexdigest()
 
 
 def discover_skills(root: str | Path) -> list[Path]:

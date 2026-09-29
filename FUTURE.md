@@ -21,11 +21,10 @@ Deferred out of the before-GH cut. Roughly priority order.
 
 - (done in v0.3.0) **SARIF output** (`--sarif`). Findings render inline in GitHub PR
   code-scanning.
-- **A reader for the skill verdict (open).** Since v0.4.0 `harden` emits a
-  `policy_version: 2` file with the verdict under the reserved `skill:` block (no tool
-  policy; agentbastion/bastiongate load it and ignore the block). Nothing reads it yet:
-  a skill installer/loader (or a CI step) that refuses `verdict: deny` would make it
-  enforcement. Until then `scan --fail-on` is the gate.
+- (done in v0.5.0) **A reader for the skill verdict.** `bastionskill install
+  --policy` enforces `harden`'s verdicts, pinned by content digest. Still open: a
+  runtime loader check (the agent loading a skill that changed after install; today
+  `scan --record` + ledger drift catches it after the fact).
 - **`lock` / `verify` commands.** The ledger already detects drift on `--record`;
   promote it to explicit pin/verify (a committed `skill.lock` of file hashes) so a
   repo can gate updates in CI, not just locally.
