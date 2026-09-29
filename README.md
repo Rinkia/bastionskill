@@ -32,7 +32,7 @@ bastionskill scan ./skill --json            # machine-readable
 bastionskill scan ./skill --report out.json # signable manifest (per-file hashes, verdict)
 bastionskill scan ./skill --record          # append result to the local ledger
 bastionskill scan ./skill --fail-on block   # CI gate: block|review|none (default: review)
-bastionskill harden ./skill -o skill-policy.yaml   # agentbastion/bastiongate policy
+bastionskill harden ./skill -o skill-policy.yaml   # v2 skill verdict for loaders/CI
 bastionskill ledger                         # list previously scanned skills + dates
 ```
 
@@ -92,7 +92,11 @@ the scanner reads source, it never runs it, and malware hides behind guards too.
 
 - Prompt-layer → [bastionsupply](https://github.com/Rinkia/bastionsupply) (dependency, optional extra)
 - Runtime gating → bastiongate
-- `harden` emits an agentbastion / bastiongate skill policy (allow/deny + blocked capabilities)
+- `harden` emits a `policy_version: 2` skill verdict (allow/deny + the checks and
+  capabilities that tripped it) under the `skill:` block, for whatever installs or
+  loads skills. agentbastion and bastiongate don't run skills: they load the file and
+  ignore the block, and it sets no tool policy. The enforcement today is `scan
+  --fail-on` in CI or before install.
 
 ## Test fixture
 

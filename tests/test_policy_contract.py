@@ -1,10 +1,10 @@
 """Skill-policy format contract (producer lock, PRP §1.3).
 
-`bastionskill harden` emits a *skill* policy — `default:` + a `skills:` block of
-per-skill verdict / reasons / block_capabilities. This is a DIFFERENT format from
-the tool allow/deny policy that bastionsupply/probe/trace emit (locked separately);
-it has no consumer in the suite yet, so this is a producer-only lock: it freezes the
-emitted shape so a drift is loud, ready for a consumer to rely on.
+`bastionskill harden` emits a `policy_version: 2` file whose only block is the
+reserved `skill:` block (`skills:` -> per-skill verdict / reasons /
+block_capabilities). No top-level `default:`: the file installs no tool policy in
+agentbastion or bastiongate, which load it and ignore `skill:`. No suite consumer
+reads the verdict yet, so this is a producer-only lock that freezes the shape.
 
 Regenerate the golden deliberately (from the fixed report below), read the diff.
 """
@@ -41,8 +41,16 @@ def test_harden_output_matches_golden():
 def test_skill_policy_contract_keys():
     y = to_policy_yaml(_report())
     # The vocabulary a future consumer will parse.
-    for key in ("default: allow", "skills:", "verdict: deny", "reasons:", "block_capabilities:"):
+    for key in ("policy_version: 2", "skill:", "  skills:", "verdict: deny", "reasons:",
+                "block_capabilities:"):
         assert key in y, f"skill-policy missing contract key: {key!r}"
+
+
+def test_no_tool_policy_keys():
+    # a skill verdict must never read as a tool policy (v1 had `default: allow`)
+    y = to_policy_yaml(_report())
+    for line in y.splitlines():
+        assert not line.startswith(("default:", "allow:", "deny:", "rate_limits:")), line
 
 
 def test_only_malice_and_shadow_trip_the_verdict():

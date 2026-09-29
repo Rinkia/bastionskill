@@ -88,7 +88,7 @@ def main(argv=None) -> int:
     ps.add_argument("--ignore", help="path to a .bastionskillignore (default: in the skill dir)")
     ps.add_argument("--no-ignore", action="store_true", help="ignore any .bastionskillignore")
 
-    ph = sub.add_parser("harden", help="emit an agentbastion/bastiongate skill policy")
+    ph = sub.add_parser("harden", help="emit a policy_version 2 skill verdict (for loaders/CI)")
     ph.add_argument("target", help="skill dir (or remote url/owner-repo)")
     ph.add_argument("--name", help="override skill name label")
     ph.add_argument("-o", "--out", help="write policy.yaml (default: stdout)")
@@ -177,7 +177,7 @@ def _cmd_harden(args) -> int:
             checkout.__exit__(None, None, None)
     if args.out:
         Path(args.out).write_text(yaml, encoding="utf-8")
-        print(f"wrote policy -> {args.out}")
+        print(f"wrote skill verdict -> {args.out}")
     else:
         sys.stdout.write(yaml)
     return 0
