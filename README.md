@@ -35,7 +35,21 @@ bastionskill scan ./skill --fail-on block   # CI gate: block|review|none (defaul
 bastionskill harden ./skill -o skill-policy.yaml   # v2 verdict(s), pinned by digest
 bastionskill install owner/repo --to ~/.claude/skills   # install only if it passes
 bastionskill install ./skill --to ~/.claude/skills --policy skill-policy.yaml
+bastionskill lock ./skills -o skill.lock    # pin a folder of skills (commit skill.lock)
+bastionskill verify ./skills               # CI: fail if a skill was added/removed/changed
 bastionskill ledger                         # list previously scanned skills + dates
+```
+
+## lock / verify: gate skill updates in CI
+
+`lock` scans every skill under a dir and, if all pass `--fail-on` (default `review`),
+writes `skill.lock`: each skill's path, its digest (every file it ships, SKILL.md
+included) and its verdict. Commit it. `verify` recomputes the digests and exits 1 if
+any skill was **added, removed or changed**, so an update can't land unreviewed:
+re-scan it, then `lock` again to accept it.
+
+```yaml
+- run: pip install bastionskill && bastionskill verify .claude/skills --lock skill.lock
 ```
 
 ## install: the gate that enforces the verdict
