@@ -8,7 +8,9 @@
     bastionskill scan ./skill --report out.json   # signable manifest (hashes, verdict)
     bastionskill scan ./skill --record            # append result to the local ledger
     bastionskill scan ./skill --fail-on critical  # CI gate threshold (default: high)
-    bastionskill harden ./skill -o skill-policy.yaml
+    bastionskill harden ./skill -o skill-policy.yaml   # verdict(s), pinned by digest
+    bastionskill install owner/repo --to ~/.claude/skills   # install only if it passes
+    bastionskill install ./skill --to DIR --policy skill-policy.yaml   # enforce verdicts
     bastionskill ledger                           # list previously scanned skills + dates
 """
 
@@ -16,12 +18,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 
-from . import __version__, harden, ledger as ledger_mod, prompt, remote, report
+from . import __version__, harden, install as install_mod, ledger as ledger_mod, prompt, remote, report
+from . import verdicts
 from .ignore import load as load_ignore
-from .loader import discover_skills, load_skill
+from .loader import discover_skills, load_skill, tree_digest
 from .models import VERDICTS, ScanReport, Skill
 from .scanner import scan
 
@@ -88,10 +92,19 @@ def main(argv=None) -> int:
     ps.add_argument("--ignore", help="path to a .bastionskillignore (default: in the skill dir)")
     ps.add_argument("--no-ignore", action="store_true", help="ignore any .bastionskillignore")
 
-    ph = sub.add_parser("harden", help="emit a policy_version 2 skill verdict (for loaders/CI)")
-    ph.add_argument("target", help="skill dir (or remote url/owner-repo)")
-    ph.add_argument("--name", help="override skill name label")
+    ph = sub.add_parser("harden", help="emit policy_version 2 skill verdicts, pinned by digest")
+    ph.add_argument("target", help="skill dir, a dir of skills, or a remote url/owner-repo")
+    ph.add_argument("--name", help="override skill name label (single skill only)")
     ph.add_argument("-o", "--out", help="write policy.yaml (default: stdout)")
+
+    pi = sub.add_parser("install", help="copy a skill into a skills dir only if it passes")
+    pi.add_argument("target", help="skill dir, a dir of skills, or a remote url/owner-repo")
+    pi.add_argument("--to", required=True, help="skills dir to install into, e.g. ~/.claude/skills")
+    pi.add_argument("--policy", help="a `harden` verdict file to enforce (allow needs a matching digest)")
+    pi.add_argument("--name", help="override the installed name (single skill only)")
+    pi.add_argument("--fail-on", default="review", choices=list(_FAIL_CHOICES),
+                    help="without a policy verdict, refuse at this scan verdict or worse (default: review)")
+    pi.add_argument("--force", action="store_true", help="replace a skill already installed under that name")
 
     pl = sub.add_parser("ledger", help="list previously scanned skills and dates")
     pl.add_argument("--json", action="store_true", help="emit JSON")
@@ -103,6 +116,8 @@ def main(argv=None) -> int:
         return _cmd_harden(args)
     if args.cmd == "ledger":
         return _cmd_ledger(args)
+    if args.cmd == "install":
+        return _cmd_install(args)
     return 2
 
 
@@ -166,12 +181,38 @@ def _cmd_scan(args) -> int:
     return 1 if worst_fail else 0
 
 
+def _skill_name(d: Path, base: Path, checkout, override: str | None, many: bool) -> str:
+    """The name a skill is hardened and installed under. A remote skill at the repo root
+    would otherwise be named after the random clone dir, so use the repo name."""
+    if override:
+        if many:
+            _die("--name needs a single skill (the target holds several)")
+        return override
+    if checkout is not None and d == base:
+        return checkout.url.rstrip("/").split("/")[-1].removesuffix(".git")
+    return d.name
+
+
+def _unique_names(dirs: list[Path], base: Path, checkout, override: str | None) -> list[str]:
+    """Skill names for `harden`; names that collide (e.g. a tool that nests copies,
+    skills/x and skills/pack/x) fall back to their path under `base`. The verdict's
+    digest, not the name, is what `install` matches an allow on."""
+    names = [_skill_name(d, base, checkout, override, len(dirs) > 1) for d in dirs]
+    return [d.relative_to(base).as_posix() if names.count(n) > 1 else n
+            for d, n in zip(dirs, names)]
+
+
 def _cmd_harden(args) -> int:
     base, checkout = _with_target(args.target)
     try:
-        d = discover_skills(base)[0]
-        skill = load_skill(d, name=args.name)
-        yaml = harden.to_policy_yaml(scan(skill))
+        dirs = discover_skills(base)
+        items = []
+        for d, name in zip(dirs, _unique_names(dirs, base, checkout, args.name)):
+            items.append((scan(load_skill(d, name=name)), tree_digest(d)))
+        try:
+            yaml = harden.to_policy_yaml_many(items)
+        except ValueError as e:
+            _die(str(e))
     finally:
         if checkout:
             checkout.__exit__(None, None, None)
@@ -181,6 +222,60 @@ def _cmd_harden(args) -> int:
     else:
         sys.stdout.write(yaml)
     return 0
+
+
+def _cmd_install(args) -> int:
+    dest = Path(args.to).expanduser()
+    try:
+        policy = verdicts.load(args.policy) if args.policy else {}
+    except (OSError, verdicts.VerdictFileError) as e:
+        _die(f"cannot use --policy: {e}")
+    base, checkout = _with_target(args.target)
+    staged_dirs: list[Path] = []
+    try:
+        dirs = discover_skills(base)
+        names = [_skill_name(d, base, checkout, args.name, len(dirs) > 1) for d in dirs]
+        dupes = sorted({n for n in names if names.count(n) > 1})
+        if dupes:
+            _die(f"several skills would install as {dupes}; install them one at a time")
+        plans = []
+        for d, name in zip(dirs, names):
+            try:
+                install_mod.check_name(name)
+            except ValueError as e:
+                _die(str(e))
+            if not (d / "SKILL.md").is_file():
+                _die(f"{d} has no SKILL.md: not a skill")
+            if (dest / name).exists() and not args.force:
+                _die(f"{dest / name} already exists (use --force to replace it)")
+            try:
+                staged = install_mod.stage(d, dest)
+            except ValueError as e:
+                _die(f"{name}: {e}")
+            staged_dirs.append(staged)
+            decision, rep, skill = install_mod.decide(
+                staged, name, policy, lambda r: _fails(r, args.fail_on))
+            plans.append((decision, staged, skill, rep))
+
+        for decision, *_ in plans:
+            mark = "ok    " if decision.ok else "REFUSE"
+            print(f"{mark} {decision.name}: {decision.why}")
+        if not all(p[0].ok for p in plans):
+            print(f"nothing installed: {sum(not p[0].ok for p in plans)} of {len(plans)} refused",
+                  file=sys.stderr)
+            return 1
+        for decision, staged, skill, rep in plans:
+            final = dest / decision.name
+            install_mod.commit(staged, final, args.force)
+            ledger_mod.record(rep, install_mod.installed_skill(skill, final))
+            print(f"installed {decision.name} -> {final}")
+        return 0
+    finally:
+        for s in staged_dirs:
+            if s.exists():
+                shutil.rmtree(s, ignore_errors=True)
+        if checkout:
+            checkout.__exit__(None, None, None)
 
 
 def _cmd_ledger(args) -> int:

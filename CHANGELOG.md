@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0
+
+- **`install`: the skill verdict now has a reader that enforces it.**
+  `bastionskill install TARGET --to DIR [--policy FILE]` copies a skill (local, a
+  folder of skills, or remote) into a skills dir only if it passes. It stages the
+  copy and scans + hashes that copy, so the decision covers exactly the bytes
+  installed. Without a policy the scan decides at `--fail-on` (default `review`).
+  With a `harden` policy, a `deny` (by name or digest) refuses, and an `allow` counts
+  only when its `digest` matches: reviewers can approve a `review`-rated skill, for
+  those exact bytes only. All-or-nothing for a folder; the skill's own
+  `.bastionskillignore` is ignored; symlinks refused; `--force` to replace. The
+  staging copy lives next to the skills dir, never inside it (an agent must not load an
+  unvetted copy, even after a crash), and install names can't leave `--to`.
+- **`harden` pins each verdict with a `digest`** (sha256 over the path + bytes of
+  every file `install` copies, SKILL.md and data included) and covers **every**
+  skill in a folder, not just the first; colliding names are keyed by path. The
+  output header now names `install --policy` as its reader.
+- Dogfood: `harden ~/.claude/skills` on 664 real skills (557 nested copies) in ~14 s,
+  every verdict pinned.
+
 ## 0.4.0
 
 - **`harden` emits a `policy_version: 2` skill verdict.** The verdict moves under the
