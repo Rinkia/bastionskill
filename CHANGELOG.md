@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0
+
+- **New detector `remote-exec`** (high, malice → verdict **review**): code fetched at
+  run time and executed, so the code that actually runs was never scanned. Catches
+  `curl|wget … | sh/bash/python/…` (incl. `sudo`), `bash -c "$(curl …)"`,
+  `bash <(curl …)` / `. <(curl …)`, PowerShell `iwr|irm … | iex` and
+  `iex (…DownloadString(…))`, Python `exec(requests.get(…).text)` /
+  `eval(urlopen(…).read())`, and JS `eval(… fetch(…))`. Not auto-block: honest
+  installers (rustup, nvm, Homebrew) use the same shape, so a human decides.
+  `curl … | base64 -d | sh` still blocks (staged-exec).
+- Dogfood on 664 real skills: 1 skill hit (gstack's bun installer, plus an attack
+  string in one of its test files); no verdict changed.
+
 ## 0.5.0
 
 - **`install`: the skill verdict now has a reader that enforces it.**

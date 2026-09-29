@@ -78,6 +78,20 @@ _REGEX: tuple[Detector, ...] = (
     _d("obfuscation", "high", "exec",
        r"base64\s+(-d|--decode)|b64decode|atob\(|FromBase64String",
        "base64-decoded payload (obfuscation)", kind="malice"),
+    # remote exec — MALICE, review not block: code fetched at run time and executed
+    # was never scanned (a blind spot by construction), but honest installers
+    # (rustup, nvm, Homebrew) use the same shape, so a human decides.
+    _d("remote-exec", "high", "exec",
+       r"\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+(?:-\S+\s+)*)?"
+       r"(?:sh|bash|zsh|dash|ksh|python\d?(?:\.\d+)?|perl|ruby|node|php|pwsh|powershell|source)\b"
+       r"|\b(?:sh|bash|zsh|python\d?)\s+(?:-c\s+)?[\"']?\$\(\s*(?:curl|wget)\b"
+       r"|(?:\b(?:bash|sh|zsh|source)|^\s*\.)\s+<\(\s*(?:curl|wget)\b"
+       r"|\b(?:iwr|irm|Invoke-WebRequest|Invoke-RestMethod)\b[^\n|]*\|\s*(?:iex|Invoke-Expression)\b"
+       r"|\b(?:iex|Invoke-Expression)\b[^\n]*(?:\b(?:iwr|irm|Invoke-WebRequest|Invoke-RestMethod)\b|DownloadString)"
+       r"|\b(?:exec|eval)\(\s*(?:requests\.get|httpx\.get|(?:urllib\.request\.)?urlopen)\("
+       r"|\b(?:eval|Function)\([^\n]*\bfetch\(",
+       "fetches remote code and executes it (the code that runs was never scanned)",
+       re.I, kind="malice"),
     # dynamic exec — capability (many legit tools shell out / exec)
     _d("dynamic-exec", "medium", "exec",
        r"\beval\(|\bexec\(|\bsystem\(|subprocess\.(Popen|call|run|check_output)|os\.popen",
