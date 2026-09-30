@@ -6,7 +6,7 @@ The shadow is the product's whole point: capabilities the bundled code exercises
 
 from __future__ import annotations
 
-from .checks import scan_opaque, scan_python_ast, scan_regex
+from .checks import scan_git_remotes, scan_opaque, scan_python_ast, scan_regex
 from .ignore import IgnoreRules
 from .models import Finding, ScanReport, Skill
 
@@ -93,6 +93,7 @@ def scan(skill: Skill, ignore: IgnoreRules | None = None) -> ScanReport:
             continue
         scanned_files += 1
         code.extend(scan_regex(f))
+        code.extend(scan_git_remotes(f))
         if f.lang == "python":
             code.extend(scan_python_ast(f))
     opaque = [o for o in skill.opaque if not (ignore and ignore.skip_file(o))]

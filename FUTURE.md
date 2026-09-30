@@ -29,8 +29,10 @@ Deferred out of the before-GH cut. Roughly priority order.
   promote it to explicit pin/verify (a committed `skill.lock` of file hashes) so a
   repo can gate updates in CI, not just locally.
 - **Broaden detectors:**
-  - (done in v0.8.0) git-exfil: push to an explicit URL (per-line: a remote added in
-    one command and pushed in another is still missed)
+  - (done in v0.8.0, multi-line in v0.9.0) git-exfil: push to an explicit URL, or to a
+    remote pointed at a network URL earlier in the same file. Still open: remotes
+    added in one file and pushed in another; remote URLs held in variables;
+    GitPython / dulwich `create_remote(...).push()` (needs the AST tier)
   - (done in v0.6.0) install-time `curl … | sh` fetch-then-exec: `remote-exec`
   - (done in v0.8.0) egress to raw public IP literals: `raw-ip-egress`. Still open:
     non-allowlisted **domains** (needs a user-supplied allowlist)

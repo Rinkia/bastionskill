@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.0
+
+Multi-line reading, written test-first (12 red -> green):
+
+- **Continued commands are read as one.** Shell and PowerShell lines ending in `\`, a
+  pipe, `&&`/`||` or a backtick are joined before every regex detector runs, and the
+  finding is reported at the line where the command starts. `curl … \` + `| bash` on
+  the next line is now `remote-exec`; single lines keep their own line numbers.
+- **git-exfil follows remotes across lines.** A remote added or re-pointed
+  (`remote add` / `set-url`) to a network URL, then pushed to on a later line of the
+  same file (`git push backup --all`, or a bare `git push` after `set-url origin …`),
+  is `git-exfil`, naming the line where the remote was set. Works in shell and in the
+  argv-list form Python/JS use to spawn git. A remote added alone, a local-path or
+  `file://` remote, a push to another remote, or a push before the add stays clean.
+- Dogfood on 664 real skills: 0 verdict changes, 0 new git-exfil findings; findings
+  in 4 shell scripts now sit on the first line of their continued command.
+- Known limits: same file only (a remote added in one file and pushed in another is
+  missed, on purpose: skill-wide would flag test fixtures next to honest pushes); a
+  remote URL held in a variable is not followed.
+
 ## 0.8.0
 
 Five new detectors (the FUTURE.md "broaden detectors" gaps), written test-first:

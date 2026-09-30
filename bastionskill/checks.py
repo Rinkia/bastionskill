@@ -163,18 +163,91 @@ def _strip_comments(text: str, lang: str) -> str:
     return "\n".join(out)
 
 
-def scan_regex(f: SourceFile) -> list[Finding]:
-    out: list[Finding] = []
+# Shell / PowerShell line continuation: trailing `\`, a pipe or `&&`/`||` waiting for its
+# right-hand side, or PowerShell's backtick.
+_CONTINUED = re.compile(r"(?:\\|\||&&|`)\s*$")
+
+
+def _logical_spans(lines: list[str], lang: str) -> list[tuple[int, int]]:
+    """1-based (first, last) line spans of each logical line. Continuations are joined
+    for shell-like languages only; everything else is one span per physical line."""
+    if lang not in ("bash", "other"):
+        return [(i, i) for i in range(1, len(lines) + 1)]
+    spans, start = [], 1
+    for i, line in enumerate(lines, start=1):
+        if _CONTINUED.search(line) and i < len(lines):
+            continue
+        spans.append((start, i))
+        start = i + 1
+    return spans
+
+
+def _join(parts: list[str]) -> str:
+    if len(parts) == 1:
+        return parts[0].strip()  # a lone physical line reads exactly as before
+    return " ".join(re.sub(r"[\\`]\s*$", "", p).strip() for p in parts)
+
+
+def _logical_lines(f: SourceFile) -> list[tuple[int, str, str]]:
+    """(first line, comment-stripped text, original text) per logical line."""
     original = f.text.splitlines()
     scanned = _strip_comments(f.text, f.lang).splitlines()
-    for i, line in enumerate(scanned, start=1):
+    return [(a, _join(scanned[a - 1:b]), _join(original[a - 1:b]))
+            for a, b in _logical_spans(scanned, f.lang)]
+
+
+def scan_regex(f: SourceFile) -> list[Finding]:
+    out: list[Finding] = []
+    for i, line, evidence in _logical_lines(f):
         for det in _REGEX:
             if det.pattern.search(line):
-                evidence = original[i - 1].strip() if i - 1 < len(original) else line.strip()
                 out.append(Finding(
                     check=det.check, severity=det.severity, file=f.path,
                     message=det.message, evidence=evidence[:200],
                     line=i, capability=det.capability, kind=det.kind,
+                ))
+    return out
+
+
+# --- git remote correlation (multi-line git-exfil) ----------------------------------
+# A remote pointed at a network URL on one line, pushed to on a later one. Shell form
+# and the argv-list form Python/JS use to spawn git. Same file only, add before push.
+# ponytail: per file; a remote added in one file and pushed in another is missed
+# (skill-wide would flag test fixtures that add `origin` next to honest `git push`).
+_NET_URL = re.compile(r"^(?:https?://|ssh://|git@[\w.-]+:|[\w.-]+@[\w.-]+:)")
+_SH_REMOTE = re.compile(
+    r"\bgit\b[^;&|\n]*?\bremote\s+(?:add|set-url)\s+(?:-\S+\s+)*['\"]?([\w.-]+)['\"]?\s+['\"]?([^\s'\";&|)]+)")
+_LIST_REMOTE = re.compile(
+    r"""['"]git['"]\s*,[^\]\n]*?['"]remote['"]\s*,\s*['"](?:add|set-url)['"]\s*,\s*['"]([\w.-]+)['"]\s*,\s*['"]([^'"]+)['"]""")
+_SH_PUSH = re.compile(r"\bgit\b[^;&|\n]*?\bpush\b([^;&|\n]*)")
+_LIST_PUSH = re.compile(r"""['"]git['"]\s*,[^\]\n]*?['"]push['"]((?:\s*,\s*['"][^'"]*['"])*)""")
+
+
+def _push_target(args: list[str]) -> str:
+    """The remote a push goes to: first non-flag argument, else the default `origin`."""
+    return next((a for a in args if a and not a.startswith("-")), "origin")
+
+
+def scan_git_remotes(f: SourceFile) -> list[Finding]:
+    remotes: dict[str, int] = {}  # remote name -> line it was pointed at a network URL
+    out: list[Finding] = []
+    for i, line, evidence in _logical_lines(f):
+        for pat in (_SH_REMOTE, _LIST_REMOTE):
+            for name, url in pat.findall(line):
+                if _NET_URL.match(url):
+                    remotes[name] = i
+                else:
+                    remotes.pop(name, None)  # re-pointed somewhere local
+        pushes = [re.findall(r"[^\s'\"]+", m) for m in _SH_PUSH.findall(line)]
+        pushes += [re.findall(r"['\"]([^'\"]*)['\"]", m) for m in _LIST_PUSH.findall(line)]
+        for args in pushes:
+            name = _push_target(args)
+            if name in remotes:
+                out.append(Finding(
+                    check="git-exfil", severity="medium", file=f.path, line=i,
+                    capability="network", kind="capability", evidence=evidence[:200],
+                    message=(f"git push to remote {name!r}, pointed at a network URL on line "
+                             f"{remotes[name]} (repo contents leave the machine)"),
                 ))
     return out
 

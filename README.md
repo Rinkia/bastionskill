@@ -114,7 +114,7 @@ you get a `! DRIFT` warning — the poisoned-update vector.
 | remote-exec | `curl … | sh`, `bash <(curl …)`, `iwr … | iex`, `exec(requests.get(…).text)`: code fetched at run time was never scanned (review, not block: honest installers do this too) |
 | dynamic exec | `exec()`, `eval()`, `getattr(m,n)()` (Python AST tier) |
 | destructive | `rm -rf`, `Remove-Item -Recurse` |
-| git-exfil | `git push https://…` (or `remote add … && git push`) to an explicit URL |
+| git-exfil | `git push https://…` to an explicit URL, or a push to a remote pointed at a network URL **earlier in the same file** (shell or `["git", "remote", "add", …]` argv form) |
 | clipboard-read / env-dump | `pbpaste`, `Get-Clipboard`, `pyperclip.paste()`; `printenv`, `json.dumps(os.environ)`, `JSON.stringify(process.env)` (count as secret reads: with egress they become exfil-combo) |
 | raw-ip-egress | a hardcoded **public** IP as a destination (`http://45.33.12.9/…`, `connect(("198.51.100.7", …))`); private/loopback ignored (review) |
 | keylogger | `pynput`, `keyboard.Listener`, `GetAsyncKeyState`, `SetWindowsHookEx`, `iohook` (review) |
@@ -123,7 +123,9 @@ you get a `! DRIFT` warning — the poisoned-update vector.
 | **shadow** | code exercises a capability SKILL.md never declared |
 
 Python files get a real `ast` pass (stdlib) on top of regex, so dynamic exec /
-import / attribute-built calls survive reflow. Bash and JS use regex heuristics.
+import / attribute-built calls survive reflow. Bash and JS use regex heuristics;
+shell and PowerShell commands continued over several lines (`\`, a trailing `|` /
+`&&` / `||`, a backtick) are joined and read as one command.
 
 Findings are reported **regardless of dead-code or `if False:` / env-flag guards** —
 the scanner reads source, it never runs it, and malware hides behind guards too.
