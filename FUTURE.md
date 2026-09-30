@@ -29,10 +29,13 @@ Deferred out of the before-GH cut. Roughly priority order.
   promote it to explicit pin/verify (a committed `skill.lock` of file hashes) so a
   repo can gate updates in CI, not just locally.
 - **Broaden detectors:**
-  - git-exfil (`git remote add` + `git push` to an external host)
+  - (done in v0.8.0) git-exfil: push to an explicit URL (per-line: a remote added in
+    one command and pushed in another is still missed)
   - (done in v0.6.0) install-time `curl … | sh` fetch-then-exec: `remote-exec`
-  - egress to raw IP literals and non-allowlisted domains
-  - clipboard read / env dump / keylog patterns
+  - (done in v0.8.0) egress to raw public IP literals: `raw-ip-egress`. Still open:
+    non-allowlisted **domains** (needs a user-supplied allowlist)
+  - (done in v0.8.0) clipboard read / env dump / keylog: `clipboard-read`, `env-dump`,
+    `keylogger`
   - (done in the cut: writes to CLAUDE.md / MCP config / other skills = `lateral-tamper`)
 - **`rules` command + per-finding remediation.** `bastionskill rules` lists every
   detector; each finding gets a one-line "why risky / what to check." Trust + docs.

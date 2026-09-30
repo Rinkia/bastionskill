@@ -114,6 +114,10 @@ you get a `! DRIFT` warning — the poisoned-update vector.
 | remote-exec | `curl … | sh`, `bash <(curl …)`, `iwr … | iex`, `exec(requests.get(…).text)`: code fetched at run time was never scanned (review, not block: honest installers do this too) |
 | dynamic exec | `exec()`, `eval()`, `getattr(m,n)()` (Python AST tier) |
 | destructive | `rm -rf`, `Remove-Item -Recurse` |
+| git-exfil | `git push https://…` (or `remote add … && git push`) to an explicit URL |
+| clipboard-read / env-dump | `pbpaste`, `Get-Clipboard`, `pyperclip.paste()`; `printenv`, `json.dumps(os.environ)`, `JSON.stringify(process.env)` (count as secret reads: with egress they become exfil-combo) |
+| raw-ip-egress | a hardcoded **public** IP as a destination (`http://45.33.12.9/…`, `connect(("198.51.100.7", …))`); private/loopback ignored (review) |
+| keylogger | `pynput`, `keyboard.Listener`, `GetAsyncKeyState`, `SetWindowsHookEx`, `iohook` (review) |
 | lateral-tamper | writes to `CLAUDE.md`, MCP config, or other skills |
 | **opaque-binary** | bundles a compiled/loadable file it can't inspect (incl. renamed binaries, magic-byte sniffed) |
 | **shadow** | code exercises a capability SKILL.md never declared |
