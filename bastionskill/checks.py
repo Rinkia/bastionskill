@@ -71,6 +71,41 @@ _REGEX: tuple[Detector, ...] = (
     _d("secret-read", "low", "secrets",
        r"(^|[\s\"'/=@])\.env\b",
        "reads a .env secrets file"),
+    # clipboard read / env dump — capability "secrets": the clipboard holds passwords and
+    # tokens, the environment holds API keys. With egress they become exfil-combo.
+    _d("clipboard-read", "medium", "secrets",
+       r"\bpbpaste\b|\bxclip\b[^\n]*\s-o(?:ut)?\b|\bxsel\b[^\n]*(?:\s-o\b|--output)|\bwl-paste\b"
+       r"|\bGet-Clipboard\b|pyperclip\.paste\(|\bclipboard\.read(?:Text)?\(|Clipboard\.GetText\(",
+       "reads the clipboard (often holds passwords/tokens)", re.I),
+    _d("env-dump", "medium", "secrets",
+       # bare `env`/`printenv` only as a shell COMMAND (not `f(env)`, not `env X=1 cmd`);
+       # iterating process.env to filter it for a child process is not a dump
+       r"(?:^\s*|[;&|]\s*)(?:printenv|env)\s*(?:$|[|>;&])"
+       r"|json\.dumps\([^\n]*\bos\.environ\b(?!\s*(?:\[|\.get\b))|\bstr\(\s*os\.environ\s*\)"
+       r"|JSON\.stringify\(\s*process\.env\s*[,)]"
+       r"|\b(?:Get-ChildItem|gci|ls|dir)\s+env:",
+       "dumps the whole environment (API keys and tokens live there)", re.I),
+    # git exfil — capability "network": pushing the repo (or anything committed to it)
+    # to an explicit URL, directly or via a remote added on the same line. Adding a
+    # remote alone sends nothing (test fixtures do it constantly). Honest deploys push
+    # too, so it escalates only via shadow (undeclared network) or exfil-combo.
+    # ponytail: per-line; a remote added in one command and pushed in another is missed.
+    _d("git-exfil", "medium", "network",
+       r"\bgit\b[^\n]*?\bpush\b[^\n]*?(?:https?://|ssh://|git@[\w.-]+:)"
+       r"|\bgit\b[^\n]*?\bremote\s+(?:add|set-url)\b[^\n]*?(?:https?://|ssh://|git@[\w.-]+:)[^\n]*\bgit\b[^\n]*\bpush\b",
+       "git push to an explicit external URL (repo contents leave the machine)"),
+    # raw public IP — MALICE (review): a hardcoded public IPv4 destination skips DNS and
+    # any domain allowlist. Loopback / private / link-local ranges are excluded.
+    _d("raw-ip-egress", "high", "network",
+       r"(?:\b(?:https?|wss?|ftp)://(?:[^/\s@]*@)?|\b(?:connect|connect_ex|create_connection)\(\s*\(\s*['\"])"
+       r"(?!(?:127|10|0)\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|169\.254\.)"
+       r"(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}(?![\d.])",
+       "network destination is a hardcoded public IP (skips DNS / domain allowlists)", kind="malice"),
+    # keylogger — MALICE (review): keystroke capture has no honest use in a skill.
+    _d("keylogger", "high", "secrets",
+       r"\b(?:from|import)\s+pynput\b|\bkeyboard\.(?:Listener|on_press|on_release|hook|read_key|record)\b"
+       r"|\bGetAsyncKeyState\b|\bSetWindowsHookEx\w*|\bWH_KEYBOARD_LL\b|\bu?iohook\b|\bCGEventTapCreate\b",
+       "captures keystrokes (keylogger)", kind="malice"),
     # obfuscation — MALICE (staged-exec is the only auto-block: decode piped to a shell)
     _d("staged-exec", "critical", "exec",
        r"base64\s+(-d|--decode)[^\n|]*\|\s*(sh|bash|python|node)\b",

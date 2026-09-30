@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.0
+
+Five new detectors (the FUTURE.md "broaden detectors" gaps), written test-first:
+
+- **`git-exfil`** (capability, network): `git push` to an explicit URL, or a remote
+  added and pushed on one line. Adding a remote alone is not flagged (test fixtures
+  do it constantly).
+- **`clipboard-read`** and **`env-dump`** (capability, secrets): `pbpaste`, `xclip -o`,
+  `Get-Clipboard`, `pyperclip.paste()`, `clipboard.readText()`; a bare `printenv`/`env`
+  command, `json.dumps(os.environ)`, `str(os.environ)`, `JSON.stringify(process.env)`,
+  `Get-ChildItem env:`. Single variable reads, `os.environ.copy()` for a subprocess and
+  filtering `process.env` stay clean. As secret reads, with network egress they raise
+  the existing **exfil-combo**.
+- **`raw-ip-egress`** (malice → review): a hardcoded public IPv4 destination in a URL
+  or `connect((...))`; loopback, private and link-local ranges are ignored.
+- **`keylogger`** (malice → review): pynput, `keyboard.Listener`/`on_press`,
+  `GetAsyncKeyState`, `SetWindowsHookEx`/`WH_KEYBOARD_LL`, `iohook`, `CGEventTapCreate`.
+- Dogfood on 664 real skills: no verdict changed. A first cut flagged 240 lines
+  (`f(env)` calls, `git remote add` in test fixtures); the spec was tightened from
+  that data down to 3 hits.
+
 ## 0.7.0
 
 - **`lock` / `verify`: gate skill updates in CI.** `bastionskill lock DIR -o skill.lock`
