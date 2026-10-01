@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0
+
+- **`bastionskill rules`** (and `rules --json`): every check the scanner can report,
+  with its kind, its effect on the verdict (block / review / informational, and which
+  correlation escalates it), why it's risky, and what to check by hand.
+- **Findings explain themselves.** Each reason in a text report is followed by a
+  `check:` line (once per check, not once per finding); `--json` findings carry `why`
+  and `what_to_check`; SARIF rules carry them as `fullDescription` and `help`, so
+  they show in GitHub code scanning.
+- `bastionskill/rules.py` is the single source. `tests/test_rules.py` scrapes the
+  package for every check name a detector can emit and fails if one has no rule (or a
+  rule has no detector), so a new detector can't ship undocumented.
+
 ## 0.9.0
 
 Multi-line reading, written test-first (12 red -> green):

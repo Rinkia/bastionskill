@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
+from . import rules
 from .models import ScanReport, Skill
 
 MANIFEST_SCHEMA = "bastionskill.manifest/1"
@@ -42,9 +43,14 @@ def to_text(rep: ScanReport) -> str:
 
     # Why it isn't allowed — the malice + shadow signals, up top.
     lines.append(f"why {rep.verdict}:")
+    hinted: set[str] = set()
     for f in reasons:
         loc = f" ({f.file}:{f.line})" if f.line else (f" ({f.file})" if f.file else "")
         lines.append(f"  ! [{f.kind}] {f.check}: {f.message}{loc}")
+        hint = rules.what_to_check(f.check)
+        if hint and f.check not in hinted:  # once per check, not once per finding
+            hinted.add(f.check)
+            lines.append(f"      check: {hint}")
 
     cap = _capability_summary(findings)
     if cap:
@@ -108,6 +114,8 @@ def to_json(rep: ScanReport) -> str:
                 "line": f.line,
                 "message": f.message,
                 "evidence": f.evidence,
+                "why": rules.why(f.check),
+                "what_to_check": rules.what_to_check(f.check),
             }
             for f in rep.sorted_findings()
         ],

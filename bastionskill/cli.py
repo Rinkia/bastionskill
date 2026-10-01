@@ -13,6 +13,7 @@
     bastionskill install ./skill --to DIR --policy skill-policy.yaml   # enforce verdicts
     bastionskill lock ./skills -o skill.lock      # pin a folder of skills (commit the lock)
     bastionskill verify ./skills --lock skill.lock   # CI: fail if a skill changed
+    bastionskill rules                            # every check: why it's risky, what to check
     bastionskill ledger                           # list previously scanned skills + dates
 """
 
@@ -25,7 +26,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, harden, install as install_mod, ledger as ledger_mod, prompt, remote, report
-from . import lockfile, verdicts
+from . import lockfile, rules as rules_mod, verdicts
 from .ignore import load as load_ignore
 from .loader import discover_skills, load_skill, tree_digest
 from .models import VERDICTS, ScanReport, Skill
@@ -118,6 +119,9 @@ def main(argv=None) -> int:
     pv.add_argument("target", help="skill dir or a dir of skills")
     pv.add_argument("--lock", default="skill.lock", help="lock file to check against (default: skill.lock)")
 
+    pr = sub.add_parser("rules", help="list every check: verdict effect, why it's risky, what to check")
+    pr.add_argument("--json", action="store_true", help="emit JSON")
+
     pl = sub.add_parser("ledger", help="list previously scanned skills and dates")
     pl.add_argument("--json", action="store_true", help="emit JSON")
 
@@ -128,6 +132,8 @@ def main(argv=None) -> int:
         return _cmd_harden(args)
     if args.cmd == "ledger":
         return _cmd_ledger(args)
+    if args.cmd == "rules":
+        return _cmd_rules(args)
     if args.cmd == "lock":
         return _cmd_lock(args)
     if args.cmd == "verify":
@@ -339,6 +345,17 @@ def _cmd_verify(args) -> int:
             print(f"  {label:<8} {k}")
     print("review the change, then `bastionskill lock` again to accept it", file=sys.stderr)
     return 1
+
+
+def _cmd_rules(args) -> int:
+    if args.json:
+        print(json.dumps(rules_mod.as_dicts(), indent=2, ensure_ascii=False))
+        return 0
+    for r in rules_mod.RULES.values():
+        print(f"{r.check}  [{r.kind}] {r.verdict}")
+        print(f"    why:   {r.why}")
+        print(f"    check: {r.what_to_check}")
+    return 0
 
 
 def _cmd_ledger(args) -> int:

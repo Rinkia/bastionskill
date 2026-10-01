@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 
 from . import __version__
+from . import rules as rules_mod
 from .models import ScanReport
 
 _SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
@@ -24,11 +25,15 @@ def to_sarif(report: ScanReport) -> str:
     rules: dict[str, dict] = {}
     results = []
     for f in report.findings:
-        rules.setdefault(f.check, {
+        rule = {
             "id": f.check,
             "shortDescription": {"text": f.check.replace("-", " ")},
             "helpUri": f"{_INFO_URI}#checks",
-        })
+        }
+        if rules_mod.why(f.check):
+            rule["fullDescription"] = {"text": rules_mod.why(f.check)}
+            rule["help"] = {"text": rules_mod.what_to_check(f.check)}
+        rules.setdefault(f.check, rule)
         physical = {"artifactLocation": {"uri": f.file or report.skill}}
         if f.line:
             physical["region"] = {"startLine": f.line}

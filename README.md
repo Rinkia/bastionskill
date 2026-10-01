@@ -37,8 +37,13 @@ bastionskill install owner/repo --to ~/.claude/skills   # install only if it pas
 bastionskill install ./skill --to ~/.claude/skills --policy skill-policy.yaml
 bastionskill lock ./skills -o skill.lock    # pin a folder of skills (commit skill.lock)
 bastionskill verify ./skills               # CI: fail if a skill was added/removed/changed
+bastionskill rules                          # every check: verdict effect, why risky, what to check
 bastionskill ledger                         # list previously scanned skills + dates
 ```
+
+Every reason in a report comes with a one-line **what to check** (in `--json` as
+`why` / `what_to_check`, in SARIF as the rule's description and help). `bastionskill
+rules` (or `rules --json`) lists every check with its effect on the verdict.
 
 ## lock / verify: gate skill updates in CI
 

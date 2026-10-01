@@ -39,7 +39,7 @@ Deferred out of the before-GH cut. Roughly priority order.
   - (done in v0.8.0) clipboard read / env dump / keylog: `clipboard-read`, `env-dump`,
     `keylogger`
   - (done in the cut: writes to CLAUDE.md / MCP config / other skills = `lateral-tamper`)
-- **`rules` command + per-finding remediation.** `bastionskill rules` lists every
+- (done in v0.10.0) **`rules` command + per-finding remediation.** `bastionskill rules` lists every
   detector; each finding gets a one-line "why risky / what to check." Trust + docs.
 - **Trailing-comment / in-string awareness.** Current comment stripping only blanks
   full-line comments (ponytail note in checks.py). A real per-language tokenizer
@@ -74,6 +74,10 @@ Deferred out of the before-GH cut. Roughly priority order.
   refreshed from PyPI.
 
 ## Detector coverage gaps (known ceilings)
+
+- **hidden-unicode in SKILL.md has no verdict effect.** `scan --prompt` tags it as a
+  plain capability (found while writing `rules`). bastionmemory treats hidden/bidi
+  characters as malice; doing the same here would make it a review.
 
 - Renamed/extension-less binaries: magic-byte sniff covers ELF/PE/Mach-O/wasm/class/
   dex; packed or exotic formats slip. Upgrade: broader magic table or entropy check.
