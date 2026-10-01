@@ -94,9 +94,9 @@ _ALL = (
        "Calls a function looked up by name at run time (getattr-built call, Python).",
        "Check the attribute name is a constant, not derived from input or fetched data."),
     # --- prompt layer (scan --prompt) ------------------------------------------------
-    _r("hidden-unicode", "capability", "informational",
-       "SKILL.md's description contains invisible or bidi-reordering characters.",
-       "View the description with invisible characters shown; hidden text is a prompt-injection trick."),
+    _r("hidden-unicode", "malice", "review",
+       "SKILL.md hides text from a reviewer: zero-width, bidi-reordering or tag characters (invisible text).",
+       "Read the decoded hidden text in the evidence; strip every invisible character before trusting it."),
     _r("prompt-layer-note", "capability", "informational",
        "Only the hidden-unicode prompt check ran; full prompt-injection scanning lives in bastionsupply.",
        "pip install bastionsupply to scan SKILL.md text for injection."),

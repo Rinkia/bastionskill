@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ast
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Callable
 
@@ -249,6 +250,53 @@ def scan_git_remotes(f: SourceFile) -> list[Finding]:
                     message=(f"git push to remote {name!r}, pointed at a network URL on line "
                              f"{remotes[name]} (repo contents leave the machine)"),
                 ))
+    return out
+
+
+# --- hidden unicode in SKILL.md -----------------------------------------------------
+# SKILL.md is the prompt the agent reads. Zero-width characters hide text, bidi
+# controls reorder what a reviewer sees, and Unicode TAG characters (U+E0000..E007F)
+# carry a whole invisible ASCII message. Malice-kind: verdict review.
+_INVISIBLE = {
+    0x200B: "ZERO WIDTH SPACE", 0x200C: "ZERO WIDTH NON-JOINER", 0x200D: "ZERO WIDTH JOINER",
+    0x2060: "WORD JOINER", 0x180E: "MONGOLIAN VOWEL SEPARATOR", 0xFEFF: "ZERO WIDTH NO-BREAK SPACE",
+    0x202A: "LRE", 0x202B: "RLE", 0x202C: "PDF", 0x202D: "LRO", 0x202E: "RLO",
+    0x2066: "LRI", 0x2067: "RLI", 0x2068: "FSI", 0x2069: "PDI",
+}
+
+
+def _is_tag(c: str) -> bool:
+    return 0xE0000 <= ord(c) <= 0xE007F
+
+
+def _emoji_side(c: str) -> bool:
+    return ord(c) >= 0x1F000 or ord(c) == 0xFE0F or unicodedata.category(c) == "So"
+
+
+def scan_hidden_unicode(skill_md: str) -> list[Finding]:
+    out: list[Finding] = []
+    for n, line in enumerate(skill_md.splitlines(), start=1):
+        hits: list[str] = []
+        for i, c in enumerate(line):
+            if n == 1 and i == 0 and c == "﻿":
+                continue  # byte-order mark at the start of the file: an encoding marker
+            if c == "‍" and 0 < i < len(line) - 1 and _emoji_side(line[i - 1]) and _emoji_side(line[i + 1]):
+                continue  # joiner inside an emoji sequence
+            if ord(c) in _INVISIBLE or _is_tag(c):
+                hits.append(c)
+        if not hits:
+            continue
+        tags = "".join(chr(ord(c) - 0xE0000) for c in hits if _is_tag(c))
+        names = sorted({_INVISIBLE[ord(c)] for c in hits if not _is_tag(c)})
+        if tags:
+            names.append(f"{sum(map(_is_tag, hits))} tag characters (invisible text)")
+        shown = "".join(f"<U+{ord(c):04X}>" if (ord(c) in _INVISIBLE or _is_tag(c)) else c for c in line)
+        out.append(Finding(
+            check="hidden-unicode", severity="high", file="SKILL.md", line=n,
+            capability="", kind="malice",
+            message="hidden/reordering characters in SKILL.md: " + ", ".join(names),
+            evidence=(f"hidden text: {tags}" if tags else shown)[:200],
+        ))
     return out
 
 

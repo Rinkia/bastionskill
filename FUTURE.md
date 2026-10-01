@@ -75,9 +75,9 @@ Deferred out of the before-GH cut. Roughly priority order.
 
 ## Detector coverage gaps (known ceilings)
 
-- **hidden-unicode in SKILL.md has no verdict effect.** `scan --prompt` tags it as a
-  plain capability (found while writing `rules`). bastionmemory treats hidden/bidi
-  characters as malice; doing the same here would make it a review.
+- (done in v0.11.0) **hidden-unicode in SKILL.md counts toward the verdict** (review),
+  on every scan, over the whole file, tag-character text decoded. Still open: bidi
+  controls in bundled CODE (Trojan Source, CVE-2021-42574).
 
 - Renamed/extension-less binaries: magic-byte sniff covers ELF/PE/Mach-O/wasm/class/
   dex; packed or exotic formats slip. Upgrade: broader magic table or entropy check.

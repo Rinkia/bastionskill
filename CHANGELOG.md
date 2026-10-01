@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.0
+
+- **Invisible characters in SKILL.md now count toward the verdict** (malice → review).
+  SKILL.md is the prompt the agent reads; hidden text in it is a prompt-injection
+  trick. Before, `hidden-unicode` only ran with `--prompt`, only read the frontmatter
+  `description`, and had no verdict effect. Now:
+  - it runs on **every** scan, over the **whole** SKILL.md, one finding per line;
+  - it catches zero-width characters, bidi overrides/isolates and Unicode **tag
+    characters** (U+E0000-E007F), whose smuggled ASCII message is decoded into the
+    evidence (`hidden text: ignore all rules ...`);
+  - honest uses stay clean: a byte-order mark at the start of the file, and the
+    zero-width joiner inside an emoji sequence;
+  - a skill's own `.bastionskillignore` can't suppress it.
+- `--prompt` now only points at bastionsupply for full prompt-injection scanning.
+- Dogfood on 675 real skills: 0 hidden-unicode findings, 0 verdict changes.
+
 ## 0.10.0
 
 - **`bastionskill rules`** (and `rules --json`): every check the scanner can report,
