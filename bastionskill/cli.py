@@ -85,7 +85,7 @@ def main(argv=None) -> int:
     ps.add_argument("target", help="skill dir, a dir of skills, or a remote url/owner-repo")
     ps.add_argument("--name", help="override skill name label")
     ps.add_argument("--prompt", action="store_true",
-                    help="also run the prompt-layer check (hidden unicode)")
+                    help="also point at bastionsupply for prompt-injection scanning of SKILL.md")
     ps.add_argument("--json", action="store_true", help="emit JSON")
     ps.add_argument("--sarif", action="store_true", help="emit SARIF 2.1.0 (GitHub code scanning)")
     ps.add_argument("--report", help="write a signable scan manifest to this path")

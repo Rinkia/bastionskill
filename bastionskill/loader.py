@@ -93,7 +93,8 @@ def load_skill(root: str | Path, name: str | None = None) -> Skill:
         raise FileNotFoundError(f"no such path: {root}")
 
     skill_md = _find_skill_md(root)
-    description = _parse_description(_read(skill_md)) if skill_md else ""
+    skill_md_text = _read(skill_md) if skill_md else ""
+    description = _parse_description(skill_md_text)
     base = skill_md.parent if skill_md else root
 
     files: list[SourceFile] = []
@@ -118,6 +119,7 @@ def load_skill(root: str | Path, name: str | None = None) -> Skill:
         files=tuple(files),
         source=str(root),
         opaque=tuple(opaque),
+        skill_md=skill_md_text,
     )
 
 

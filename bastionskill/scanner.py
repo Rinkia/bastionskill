@@ -6,7 +6,7 @@ The shadow is the product's whole point: capabilities the bundled code exercises
 
 from __future__ import annotations
 
-from .checks import scan_git_remotes, scan_opaque, scan_python_ast, scan_regex
+from .checks import scan_git_remotes, scan_hidden_unicode, scan_opaque, scan_python_ast, scan_regex
 from .ignore import IgnoreRules
 from .models import Finding, ScanReport, Skill
 
@@ -102,6 +102,9 @@ def scan(skill: Skill, ignore: IgnoreRules | None = None) -> ScanReport:
     findings = code + shadow_findings(skill, code) + exfil_findings(code)
     if ignore:
         findings = [f for f in findings if not ignore.suppressed(f)]
+    # after suppression on purpose: a skill's own .bastionskillignore can't hide
+    # invisible text in the instructions it ships
+    findings += scan_hidden_unicode(skill.skill_md)
     return ScanReport(
         skill=skill.name,
         file_count=scanned_files + len(opaque),

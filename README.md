@@ -27,7 +27,7 @@ bastionskill scan ./some-skill              # scan a local skill dir
 bastionskill scan ~/.claude/skills          # batch-scan every skill under a dir
 bastionskill scan owner/repo                # pre-flight a REMOTE skill (shallow clone, no exec)
 bastionskill scan https://github.com/o/r    #   ... by full URL
-bastionskill scan ./skill --prompt          # + hidden-unicode / prompt-layer
+bastionskill scan ./skill --prompt          # + point at bastionsupply for prompt injection
 bastionskill scan ./skill --json            # machine-readable
 bastionskill scan ./skill --report out.json # signable manifest (per-file hashes, verdict)
 bastionskill scan ./skill --record          # append result to the local ledger
@@ -122,6 +122,7 @@ you get a `! DRIFT` warning — the poisoned-update vector.
 | git-exfil | `git push https://…` to an explicit URL, or a push to a remote pointed at a network URL **earlier in the same file** (shell or `["git", "remote", "add", …]` argv form) |
 | clipboard-read / env-dump | `pbpaste`, `Get-Clipboard`, `pyperclip.paste()`; `printenv`, `json.dumps(os.environ)`, `JSON.stringify(process.env)` (count as secret reads: with egress they become exfil-combo) |
 | raw-ip-egress | a hardcoded **public** IP as a destination (`http://45.33.12.9/…`, `connect(("198.51.100.7", …))`); private/loopback ignored (review) |
+| **hidden-unicode** | invisible characters anywhere in SKILL.md: zero-width, bidi overrides, and Unicode **tag** characters carrying a hidden message (decoded into the report). Every scan, review |
 | keylogger | `pynput`, `keyboard.Listener`, `GetAsyncKeyState`, `SetWindowsHookEx`, `iohook` (review) |
 | lateral-tamper | writes to `CLAUDE.md`, MCP config, or other skills |
 | **opaque-binary** | bundles a compiled/loadable file it can't inspect (incl. renamed binaries, magic-byte sniffed) |

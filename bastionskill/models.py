@@ -44,6 +44,7 @@ class Skill:
     files: tuple[SourceFile, ...] = ()
     source: str = ""  # dir or url it came from
     opaque: tuple[str, ...] = ()  # bundled files we cannot statically read
+    skill_md: str = ""  # full SKILL.md text: the instructions the agent actually reads
 
     def content_hash(self) -> str:
         """Stable sha256 over every bundled file's path + bytes.
